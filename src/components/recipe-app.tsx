@@ -78,7 +78,7 @@ function Collection() {
     const controller = new AbortController(); abortRef.current = controller;
     try {
       if (!online) throw new Error("Connect to the internet to extract a recipe. You can still add one manually.");
-      if (token.length < 32) throw new Error("Enter the private app code below to use AI extraction.");
+      if (!token.trim()) throw new Error("Enter the private app code below to use AI extraction.");
       setExtractionStage("Preparing screenshots…");
       const images = await prepareScreenshots(files);
       if (controller.signal.aborted) return;

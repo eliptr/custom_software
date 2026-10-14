@@ -9,7 +9,7 @@ export class RequestError extends Error { constructor(message: string, public st
 const hash = (text: string) => createHash("sha256").update(text).digest();
 
 export function authorize(request: Request, expected: string | undefined, allowedOrigin?: string): string {
-  if (!expected || expected.length < 32) throw new RequestError("Screenshot extraction is not configured. Contact the app owner.", 503);
+  if (!expected?.trim() || expected === "REPLACE_ME") throw new RequestError("Screenshot extraction is not configured. Contact the app owner.", 503);
   const origin = request.headers.get("origin");
   if (origin && origin !== (allowedOrigin || new URL(request.url).origin)) throw new RequestError("This origin is not allowed.", 403);
   const auth = request.headers.get("authorization") || "";

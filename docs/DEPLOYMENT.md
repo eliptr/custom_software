@@ -26,14 +26,14 @@ An existing Git integration has now published a successful protected Preview dep
 
 ## Required extraction configuration
 
-The existing `custom_software` Vercel project was configured on 2026-10-15. Both required variables exist as encrypted `REPLACE_ME` placeholders for Preview and Production. Replace their values in Settings → Environment Variables, then redeploy **Preview** to apply them. `APP_ACCESS_TOKEN` must be a random private code of at least 32 characters; the short placeholder intentionally keeps extraction disabled.
+The existing `custom_software` Vercel project was configured on 2026-10-15. Both required variables were created as encrypted `REPLACE_ME` placeholders for Preview and Production. Replace their values in Settings → Environment Variables, then redeploy **Preview** to apply them. `APP_ACCESS_TOKEN` can be any nonempty private code, with no minimum length. Blank values and the explicit `REPLACE_ME` placeholder keep extraction disabled.
 
 The `recipe-extraction` Firewall rule is published and active (10 requests / 600 seconds, counted by the SDK's `x-vercel-rate-limit-key` header). A live isolated test returned HTTP 204 for ten checks and HTTP 429 for the eleventh, without calling DeepSeek. Automatic system variables are enabled, and the SDK automation bypass is configured as an environment variable. Interactive deployment protection remains enabled and the production Git branch remains `main`. No production code deployment or PR merge was performed. The instructions below describe the configuration for future reference; these settings do not need to be recreated.
 
 | Variable | Value / purpose |
 | --- | --- |
 | `DEEPSEEK_API_KEY` | Server-only DeepSeek API key with sufficient credit |
-| `APP_ACCESS_TOKEN` | A private, random string of at least 32 characters; enter it as the Private app code |
+| `APP_ACCESS_TOKEN` | A nonempty private code of your choice, with no minimum length; enter exactly the same value as the Private app code |
 | `DEEPSEEK_MODEL` | Optional; defaults to `deepseek-flash` |
 | `APP_ORIGIN` | Optional exact HTTPS origin without trailing slash; omit in dynamic previews |
 

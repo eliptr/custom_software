@@ -103,9 +103,12 @@ test("screenshots are temporary, errors retry, and extraction is reviewed before
     else { await route.fulfill({ json: { recipe: toRecipeContent(greekRecipe), warnings: [{ field: "ingredients.1.quantity", message: "Salt quantity is missing." }] } }); }
   });
   await page.getByRole("button", { name: "Add your first recipe" }).click();
-  await page.getByLabel("Private app code", { exact: true }).fill("test-access-token-" + "a".repeat(32));
   await page.locator('input[type="file"][multiple]').setInputFiles(["public/icons/icon-192.png", "public/icons/apple-touch-icon.png"]);
   await page.getByRole("button", { name: "Extract recipe", exact: true }).click();
+  await expect(page.getByRole("alert")).toContainText("Enter the private app code");
+  expect(attempts).toBe(0);
+  await page.getByLabel("Private app code", { exact: true }).fill("1234");
+  await page.getByRole("button", { name: "Retry extraction", exact: true }).click();
   await expect(page.getByRole("alert")).toContainText("Please retry");
   await page.getByRole("button", { name: "Retry extraction", exact: true }).click();
   await expect(page.getByText("Salt quantity is missing.")).toBeVisible();

@@ -12,7 +12,7 @@ cp .env.example .env.local
 npm run dev
 ```
 
-On PowerShell, use `Copy-Item .env.example .env.local`. Visit http://localhost:3000. Manual recipes, editing, search, filters, cooking checklists, and Markdown backups work without AI configuration. Configure `DEEPSEEK_API_KEY` and a random `APP_ACCESS_TOKEN` of at least 32 characters to enable local extraction. Enter this private app code in the screenshot dialog; never enter your DeepSeek key in the browser. The code is held in memory and must be entered again after reloading. The development limiter permits ten authorized requests per ten-minute window per code.
+On PowerShell, use `Copy-Item .env.example .env.local`. Visit http://localhost:3000. Manual recipes, editing, search, filters, cooking checklists, and Markdown backups work without AI configuration. Configure `DEEPSEEK_API_KEY` and a nonempty `APP_ACCESS_TOKEN` to enable local extraction; there is no minimum code length. Blank values and `REPLACE_ME` keep extraction disabled. Enter this private app code in the screenshot dialog; never enter your DeepSeek key in the browser. The code is held in memory and must be entered again after reloading. The development limiter permits ten authorized requests per ten-minute window per code.
 
 ## What you can do
 

@@ -13,6 +13,14 @@ describe("extraction access and limits", () => {
     expect(() => authorize(request, token + "wrong")).toThrow();
     expect(() => authorize(new Request(request, { headers: { Origin: "https://other.test", Authorization: `Bearer ${token}` } }), token)).toThrow();
   });
+  it.each(["1", "1234", "my-kitchen"])("accepts a matching private code without a minimum length (%s)", (code) => {
+    const shortRequest = new Request("https://recipe.test/api/extract", { headers: { Authorization: `Bearer ${code}` } });
+    expect(authorize(shortRequest, code)).toBe(code);
+    expect(() => authorize(shortRequest, code + "wrong")).toThrow();
+  });
+  it.each(["", " ", "REPLACE_ME"])("keeps empty and placeholder configuration disabled", (code) => {
+    expect(() => authorize(request, code)).toThrow("not configured");
+  });
   it("rejects declared and actual oversized bodies and invalid JSON", async () => {
     await expect(readLimitedJson(new Request("https://recipe.test", { method: "POST", headers: { "Content-Type": "application/json", "Content-Length": "4000001" }, body: "{}" }))).rejects.toMatchObject({ status: 413 });
     await expect(readLimitedJson(new Request("https://recipe.test", { method: "POST", headers: { "Content-Type": "application/json" }, body: " ".repeat(4_000_001) }))).rejects.toMatchObject({ status: 413 });

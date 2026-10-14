@@ -23,7 +23,7 @@ DeepSeek receives the screenshots to process them; its data handling policy appl
 
 ## API access and quotas
 
-All paid requests require a private `APP_ACCESS_TOKEN` of at least 32 characters. Invited users share that code and your AI quota; recipes remain separate on each device. Rotating the code revokes it for everyone. Vercel Deployment Protection is a separate access gate for protected previews.
+All paid requests require an exact match to the nonempty private `APP_ACCESS_TOKEN`; there is no minimum code length. Blank configuration and the explicit `REPLACE_ME` placeholder disable extraction. Invited users share that code and your AI quota; recipes remain separate on each device. Rotating the code revokes it for everyone. Vercel Deployment Protection is a separate access gate for protected previews.
 
 Production calls `@vercel/firewall`'s `checkRateLimit` for rule ID `recipe-extraction`, with a SHA-256 hash of the validated app code and deployment environment as the bucket key. Caller IP cannot split the shared quota. Only the destination host and IP forwarding headers are supplied to the SDK; the app code, unrelated cookies, and uploaded images are not forwarded. The SDK adds Vercel's system-managed automation bypass secret to its internal request when configured. A three-second timeout bounds the check. Missing-rule and blocked results, network errors, and timeouts return 503 before DeepSeek is called; exhausted quota returns 429 with a conservative ten-minute Retry-After.
 

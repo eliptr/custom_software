@@ -8,7 +8,7 @@ vi.mock("../../src/lib/ai/deepseek", () => ({ DeepSeekExtractor: class { extract
 import { POST } from "../../src/app/api/extract/route";
 
 describe("extraction route protects paid provider calls", () => {
-  const code = "private-test-code-" + "a".repeat(32);
+  const code = "1234";
   const images = [{ mimeType: "image/png", data: Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]).toString("base64") }];
   function upload(authorization = `Bearer ${code}`) {
     return new Request("https://recipe.test/api/extract", {
