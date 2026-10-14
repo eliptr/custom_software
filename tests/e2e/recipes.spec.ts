@@ -64,14 +64,17 @@ test("one Markdown download and previewed repeated merge/replace imports", async
   await expect(page.getByRole("heading", { name: "Review your import" })).toBeVisible();
   await expect(page.getByText(/1 new/)).toBeVisible();
   await page.getByRole("button", { name: "Merge recipes" }).click();
+  await expect(page.getByRole("dialog", { name: "Review your import" })).toBeHidden();
   await expect(page.locator(".recipe-card")).toHaveCount(2);
   await page.getByLabel("Import Markdown collection").setInputFiles(payload);
   await expect(page.getByText(/1 existing IDs/)).toBeVisible();
   await page.getByRole("button", { name: "Merge recipes" }).click();
+  await expect(page.getByRole("dialog", { name: "Review your import" })).toBeHidden();
   await expect(page.locator(".recipe-card")).toHaveCount(2);
   await page.getByLabel("Import Markdown collection").setInputFiles(payload);
   await page.getByRole("radio", { name: /Replace collection/ }).check();
   await page.getByRole("button", { name: "Replace collection", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "Review your import" })).toBeHidden();
   await expect(page.locator(".recipe-card")).toHaveCount(1);
 });
 
@@ -108,6 +111,7 @@ test("screenshots are temporary, errors retry, and extraction is reviewed before
   await expect(page.getByText("Salt quantity is missing.")).toBeVisible();
   await expect(page.getByLabel(/Recipe title/)).toHaveValue(greekRecipe.title);
   await page.getByRole("button", { name: "Save recipe", exact: true }).click();
+  await expect(page.getByRole("heading", { name: greekRecipe.title, exact: true })).toBeVisible();
   await page.reload();
   await expect(page.locator(".recipe-card")).toHaveCount(1);
 });

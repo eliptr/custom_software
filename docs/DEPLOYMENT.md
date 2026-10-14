@@ -17,6 +17,8 @@ Pull requests use base `main` and compare `dev`. Do not merge until the preview 
 
 ## Connect once in Vercel
 
+An existing Git integration has now published a successful protected Preview deployment. For that project, verify the settings below rather than importing a duplicate project. The implementation pull request is [PR #1](https://github.com/eliptr/custom_software/pull/1).
+
 1. Import GitHub repository `eliptr/custom_software` into a Vercel project. Use Next.js, repository root, Node.js 22, install `npm ci`, build `npm run build`, and default output directory. The build generates the service worker before Next compiles; checked-in icons already exist.
 2. Set the **Production Branch to `main`**. Keep automatic Git previews enabled: pushes to `dev` and PRs receive Preview deployments. Production uses `main` only after a human reviews and merges the PR. Connect GitHub access without disabling branch protections.
 3. Configure the environment variables below for Preview and Production separately. Add them through Vercel's environment settings; never commit values or `.env.local`. Redeploy the relevant preview after changing configuration.

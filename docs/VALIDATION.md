@@ -16,6 +16,8 @@ Unit coverage includes schema rejection, null quantities, Greek/Unicode/fraction
 
 Browser checks cover unauthorized real API requests and no-store headers; manual create/edit/delete and confirmation; ingredient checkboxes; reordering steps; persistence across reload; title/ingredient search and filters; downloading one Markdown file; import previews, repeated merges, and replacement; actual service-worker-controlled offline reload and local editing; multiple-image extraction with mocked error/retry/review; malformed import feedback; cancel/discard behavior; dark mode; and absence of horizontal overflow. Mobile and desktop screenshots were visually inspected. The mobile suite exposed a notification blocking Settings; this was fixed and verified in the final passing run. Dialog focus restoration was also corrected.
 
+Hosted CI exposed timing races in the E2E suite: a repeated import could start while the previous merge was still finishing, and a reload could interrupt an unfinished save. Tests now wait for the import dialog to close and the saved detail heading to appear before continuing. These are application completion signals, without arbitrary sleeps or test retries. GitHub Actions use current official releases with supported runtimes.
+
 ## Created or modified implementation files
 
 - App: `src/app/page.tsx`, `layout.tsx`, `globals.css`, `api/extract/route.ts`.
@@ -33,5 +35,5 @@ Browser checks cover unauthorized real API requests and no-store headers; manual
 - No real DeepSeek request was made: no API key was supplied. Official vision/JSON support was checked, and provider behavior was tested with mocked responses. Configure secrets and verify a real two-screenshot recipe on a private preview.
 - Upstash's API contract was verified from [official REST documentation](https://upstash.com/docs/redis/features/restapi); rate-limit success/failure behavior was mocked, with no hosted Redis instance provisioned.
 - Real iPhone Safari installation and keyboard/safe-area behavior need a physical device. The mobile suite uses Chromium emulation, not Safari/WebKit.
-- No Vercel deployment was created or claimed successful. Connect GitHub, configure the Production Branch and environment variables, then verify the actual Preview deployment before any human merge to `main`.
+- Vercel's automatic Git integration reported a successful Preview deployment for commit `262b76f`. Its URL is [customsoftware-8yxff381k-eliptrs-projects.vercel.app](https://customsoftware-8yxff381k-eliptrs-projects.vercel.app); visiting it requires Vercel login. Page content could not be verified without that login, and access protection was not changed. No direct deployment or production merge was performed.
 - Browser screenshots/traces, local dependency/build directories, credentials, and `.env.local` are excluded from Git. Recipe data is device-local; use Markdown backups for migration and recovery.
