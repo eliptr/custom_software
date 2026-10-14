@@ -29,24 +29,44 @@ An existing Git integration has now published a successful protected Preview dep
 | Variable | Value / purpose |
 | --- | --- |
 | `DEEPSEEK_API_KEY` | Server-only DeepSeek API key with sufficient credit |
-| `APP_ACCESS_TOKEN` | A private, random string of at least 32 characters; users enter it in the app |
-| `UPSTASH_REDIS_REST_URL` | HTTPS REST URL for a small Upstash Redis rate limiter |
-| `UPSTASH_REDIS_REST_TOKEN` | Server-only credential permitting EVAL/INCR/EXPIRE |
+| `APP_ACCESS_TOKEN` | A private, random string of at least 32 characters; enter it as the Private app code |
 | `DEEPSEEK_MODEL` | Optional; defaults to `deepseek-flash` |
 | `APP_ORIGIN` | Optional exact HTTPS origin without trailing slash; omit in dynamic previews |
 
-Generate an access token with a password manager or `node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"` in your own terminal; put the generated value only into environment settings. Use different access tokens and limiter credentials for preview/production. Do not use `NEXT_PUBLIC_` for any secrets. APP_ACCESS_TOKEN is **not** the DeepSeek key.
+Only `DEEPSEEK_API_KEY` and `APP_ACCESS_TOKEN` are required user-configured secrets. No Redis service or credentials are required. Generate an app code with a password manager or `node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"` in your own terminal; put the generated value only into environment settings. Use different codes for preview/production. Do not use `NEXT_PUBLIC_` for any secrets. `APP_ACCESS_TOKEN` is **not** the DeepSeek key.
 
-Upstash is only a shared quota counter, not recipe storage. Create a Redis instance, copy its REST URL/token, and configure both. The code permits 10 authenticated extraction requests per fixed hour per token across server instances; requests that fail downstream count against that quota. Redis absence/outage makes production extraction return 503 before spending API credit. Rate limits protect shared paid capacity; they do not replace authentication. Manual/offline features remain usable without AI configuration.
+For personal use, enter the private app code yourself. If you later invite a few trusted people, share that code with them privately. They can use screenshot extraction billed to your DeepSeek account and share your quota. Each person's recipes remain only in their device's IndexedDB. There are no individual accounts; rotating `APP_ACCESS_TOKEN` and redeploying revokes the old code for everyone. The code is kept in browser memory until reload. A protected Vercel preview also requires deployment access; this code does not bypass Vercel login.
 
-Use Vercel Firewall to rate-limit POST requests to `/api/extract` at the edge (for example 20 requests/minute/IP) and enable available bot protections. This covers unauthorized traffic before it reaches a function. Keep the app token private and rotate it if exposed. Set a DeepSeek spending/credit limit or account alert and Vercel usage alerts. Consider Vercel Deployment Protection for private preview access; authenticated previews need to be opened with Vercel access before shell caching can complete. See [Vercel Firewall docs](https://vercel.com/docs/vercel-firewall).
+## Configure native Vercel rate limiting once
+
+The code uses `@vercel/firewall` 1.2.6. Installing the SDK does **not** create a firewall rule. In the existing project's Firewall tab, create and publish a custom rule with:
+
+| Setting | Value |
+| --- | --- |
+| Name | Recipe extraction |
+| If condition | `@vercel/firewall` |
+| Rate limit ID | `recipe-extraction` (exactly) |
+| Then action | Rate Limit |
+| Algorithm | Fixed Window |
+| Window | 10 minutes / 600 seconds |
+| Limit | 10 requests |
+| Rate-limited action | Deny, HTTP 429 |
+
+Do not restrict this SDK rule to the original `/api/extract` path or POST method: the SDK checks it through an internal GET endpoint. The app calls it only after authentication and image validation, before contacting DeepSeek. Save and **Publish** the rule; publishing security configuration does not merge code or deploy `main`. The recommended ten-minute window fits Hobby's maximum window. Additional rules or higher limits depend on your Vercel plan. See the [official SDK setup](https://vercel.com/docs/vercel-firewall/vercel-waf/rate-limiting-sdk) and [rate-limit plan limits](https://vercel.com/docs/vercel-firewall/vercel-waf/rate-limiting).
+
+For protected Preview deployments, enable **Protection Bypass for Automation** in project Settings → Deployment Protection and **Automatically expose System Environment Variables** in project Settings → Environment Variables. Vercel supplies `VERCEL_AUTOMATION_BYPASS_SECRET` to the SDK automatically; do not copy it into the app or share it with users. These platform-managed settings add no extra user-created secret. Keep interactive preview protection enabled. Redeploy the preview after changing environment settings.
+
+The app hashes the validated private code and combines it with the deployment environment for a shared bucket. Changing IPs does not create a new code quota. Vercel counters are **per region**, so this is not a strict worldwide or hourly spending cap. The window changed from the previous hourly limiter to ten minutes; all invited users share its ten slots. A downstream failure still consumes a slot. A full quota returns HTTP 429 and a conservative `Retry-After: 600`; a missing rule, blocked SDK request, outage, or three-second timeout returns 503 before spending AI credit. The firewall controls the deployed limit; keep its window at 600 seconds to match the retry guidance. Production outside Vercel is deliberately blocked. `npm run dev` uses the same recommended quota in process memory for local testing.
+
+Manual/offline features work without this configuration. If your plan permits another rule, an optional edge rule for POST `/api/extract` can rate-limit unauthorized traffic before it reaches a function. That edge rule is separate from the required SDK rule. Keep your app code private and use provider credit limits and Vercel usage alerts as a separate spending control.
 
 The API caps streamed JSON at 4,000,000 bytes (under Vercel's [4.5 MB function payload limit](https://vercel.com/docs/functions/limitations)), checks image types/signatures and aggregate sizes, refuses remote image URLs, and never writes screenshots to disk. Source input limit is 20 MB per file; prepared limit is 1.5 MB per image / 2.8 MB total. Use cropped recipe text if compression still exceeds the cap. HTTPS and a Node runtime function with 90-second max duration are required; use a Vercel plan/configuration that permits this duration.
 
 ## Verify the preview
 
 - Create a manual recipe containing Greek text, ingredients with blank quantities, and ordered steps. Reload and edit it.
-- Configure the preview's secrets, enter only its app access token, and extract two overlapping screenshots of one recipe. Review against the source, save, and retry an error if one occurs. No live extraction is claimed until this is actually checked.
+- Configure the two preview secrets and published firewall rule, enter only its private app code, and extract two overlapping screenshots of one recipe. Review against the source, save, and retry an error if one occurs. No live extraction is claimed until this is actually checked.
+- Confirm the quota blocks the eleventh authorized request in the same ten-minute window with 429. Missing or unreachable firewall configuration must block extraction with 503; these failure paths are unit-tested with SDK mocks, not verified against a configured live Vercel rule yet.
 - Export `recipe-collection.md`, re-import twice with Merge (no duplicate UUIDs), then test Replace after exporting a backup.
 - Confirm the manifest/icons and **Available offline on this device** indicator. Disconnect and reload; saved recipes and editing must work, while extraction is clearly unavailable.
 - On a real iPhone, open Safari → Share → Add to Home Screen. Verify standalone layout, keyboard behavior, safe areas, and offline startup. Desktop mobile emulation does not prove physical iOS installation.

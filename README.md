@@ -12,7 +12,7 @@ cp .env.example .env.local
 npm run dev
 ```
 
-On PowerShell, use `Copy-Item .env.example .env.local`. Visit http://localhost:3000. Manual recipes, editing, search, filters, cooking checklists, and Markdown backups work without AI configuration. Configure `DEEPSEEK_API_KEY` and a random `APP_ACCESS_TOKEN` of at least 32 characters to enable local extraction. Enter the app access token in the screenshot dialog; never enter your DeepSeek key in the browser. The access token is held in memory and must be entered again after reloading. The development limiter permits ten authorized requests per hour per token.
+On PowerShell, use `Copy-Item .env.example .env.local`. Visit http://localhost:3000. Manual recipes, editing, search, filters, cooking checklists, and Markdown backups work without AI configuration. Configure `DEEPSEEK_API_KEY` and a random `APP_ACCESS_TOKEN` of at least 32 characters to enable local extraction. Enter this private app code in the screenshot dialog; never enter your DeepSeek key in the browser. The code is held in memory and must be entered again after reloading. The development limiter permits ten authorized requests per ten-minute window per code.
 
 ## What you can do
 
@@ -50,6 +50,8 @@ The E2E suite uses installed Microsoft Edge on Windows and bundled Chromium in C
 
 ## Security and deployment
 
-Production extraction fails closed until `DEEPSEEK_API_KEY`, `APP_ACCESS_TOKEN`, `UPSTASH_REDIS_REST_URL`, and `UPSTASH_REDIS_REST_TOKEN` are configured. Upstash stores only expiring quota counters, never recipes or screenshots. No recipe cloud database, ORM, or account service is used. The API has authentication, same-origin checks, bounded streaming body reads, image validation, timeouts, a ten-request hourly shared quota, and no-store responses. Do not share the access token publicly. See [deployment](docs/DEPLOYMENT.md) for Vercel Firewall and spending limits.
+The only required user-configured secrets are `DEEPSEEK_API_KEY` and `APP_ACCESS_TOKEN`. Vercel's native Firewall SDK handles quota counters; publish its `recipe-extraction` rule as [documented](docs/DEPLOYMENT.md). Extraction fails closed if the rule is missing, blocked, or unreachable. No Redis account or Redis credentials are needed. Recipes remain in IndexedDB on each device; screenshots are temporary AI inputs. The API retains authentication, same-origin checks, bounded streaming body reads, image validation, timeouts, and no-store responses.
+
+Share the private app code only with the people you invite to use screenshot extraction. Everyone uses your DeepSeek account and shares the configured quota (recommended: ten requests per ten minutes per environment and Vercel region). This is an invitation code, not a separate account per person: rotating it revokes the old code for everyone. It does not grant access to anyone else's device-local recipes. A Vercel-protected preview additionally requires Vercel deployment access; the app code does not bypass that login.
 
 See [architecture](docs/ARCHITECTURE.md), [Markdown specification](docs/RECIPE_FORMAT.md), and [Vercel setup](docs/DEPLOYMENT.md). `dev`/PRs are for previews; `main` is for production after human review. This project never merges or directly deploys production automatically from a local script.

@@ -1,4 +1,5 @@
 import { createHash, timingSafeEqual } from "node:crypto";
+import { checkRateLimit } from "@vercel/firewall";
 import { z } from "zod";
 import { type Screenshot } from "../ai/provider";
 
@@ -13,7 +14,7 @@ export function authorize(request: Request, expected: string | undefined, allowe
   if (origin && origin !== (allowedOrigin || new URL(request.url).origin)) throw new RequestError("This origin is not allowed.", 403);
   const auth = request.headers.get("authorization") || "";
   const provided = auth.startsWith("Bearer ") ? auth.slice(7) : "";
-  if (!provided || !timingSafeEqual(hash(provided), hash(expected))) throw new RequestError("Enter the app access token to use screenshot extraction.", 401);
+  if (!provided || !timingSafeEqual(hash(provided), hash(expected))) throw new RequestError("Enter the private app code to use screenshot extraction.", 401);
   return provided;
 }
 
@@ -61,34 +62,48 @@ export function validateImages(input: unknown): Screenshot[] {
 }
 
 const localWindows = new Map<string, { count: number; expires: number }>();
-export async function consumeRateLimit(token: string, env: NodeJS.ProcessEnv = process.env, fetcher: typeof fetch = fetch, now = Date.now()): Promise<void> {
-  const windowMs = 3600000;
-  const limit = 10;
-  const key = `recipe-tracker:quota:${hash(token).toString("hex").slice(0, 24)}:${Math.floor(now / windowMs)}`;
-  const retryAfter = Math.ceil((windowMs - now % windowMs) / 1000);
-  const url = env.UPSTASH_REDIS_REST_URL;
-  const accessToken = env.UPSTASH_REDIS_REST_TOKEN;
-  if (url && accessToken) {
+export const EXTRACTION_RATE_LIMIT_ID = "recipe-extraction";
+export const EXTRACTION_WINDOW_SECONDS = 600;
+const EXTRACTION_LIMIT = 10;
+
+export async function consumeRateLimit(
+  token: string,
+  request: Request,
+  env: NodeJS.ProcessEnv = process.env,
+  checker: typeof checkRateLimit = checkRateLimit,
+  now = Date.now(),
+): Promise<void> {
+  const key = `recipe-tracker:${env.VERCEL_ENV || "production"}:${hash(token).toString("hex")}`;
+  if (env.NODE_ENV === "production") {
+    if (env.VERCEL !== "1") throw new RequestError("Screenshot extraction requires the Vercel rate limiter. Contact the app owner.", 503);
     try {
-      if (!url.startsWith("https://")) throw new Error("Invalid limiter URL");
-      const response = await fetcher(url.replace(/\/$/, ""), {
-        method: "POST", headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
-        body: JSON.stringify(["EVAL", "local n=redis.call('INCR',KEYS[1]); if n==1 then redis.call('EXPIRE',KEYS[1],ARGV[1]) end; return n", "1", key, "3600"]),
-        signal: AbortSignal.timeout(5000), cache: "no-store",
+      // The SDK forwards supplied headers to the firewall. Keep the app code,
+      // unrelated cookies, and other request data out of that internal request.
+      const headers = new Headers({ host: new URL(request.url).host });
+      for (const name of ["x-real-ip", "x-forwarded-for"]) {
+        const value = request.headers.get(name);
+        if (value) headers.set(name, value);
+      }
+      const result = await checker(EXTRACTION_RATE_LIMIT_ID, {
+        headers, rateLimitKey: key, timeout: 3000,
       });
-      if (!response.ok) throw new Error("Limiter failed");
-      const result = z.object({ result: z.number().int().positive() }).parse(await response.json());
-      if (result.result > limit) throw new RequestError("Hourly extraction limit reached. Please try again later.", 429, retryAfter);
+      // The SDK reports a missing rule as rateLimited:false with an error.
+      // Never let missing configuration silently enable an unlimited paid API.
+      if (result.error === "not-found") throw new RequestError("Screenshot extraction is not configured. The app owner needs to enable its Vercel rate-limit rule.", 503);
+      if (result.error) throw new RequestError("Extraction's rate limiter is unavailable. Contact the app owner.", 503);
+      if (result.rateLimited) throw new RequestError("Extraction limit reached. Please try again in 10 minutes.", 429, EXTRACTION_WINDOW_SECONDS);
       return;
     } catch (error) {
       if (error instanceof RequestError) throw error;
       throw new RequestError("Extraction is temporarily unavailable because its rate limiter could not be reached.", 503);
     }
   }
-  if (env.NODE_ENV === "production") throw new RequestError("Extraction requires a shared production rate limiter. Contact the app owner.", 503);
+  const windowMs = EXTRACTION_WINDOW_SECONDS * 1000;
+  const windowKey = `${key}:${Math.floor(now / windowMs)}`;
+  const expires = (Math.floor(now / windowMs) + 1) * windowMs;
   for (const [entry, value] of localWindows) if (value.expires <= now) localWindows.delete(entry);
-  const state = localWindows.get(key) || { count: 0, expires: now + windowMs };
+  const state = localWindows.get(windowKey) || { count: 0, expires };
   state.count++;
-  localWindows.set(key, state);
-  if (state.count > limit) throw new RequestError("Hourly extraction limit reached. Please try again later.", 429, retryAfter);
+  localWindows.set(windowKey, state);
+  if (state.count > EXTRACTION_LIMIT) throw new RequestError("Extraction limit reached. Please try again later.", 429, Math.ceil((expires - now) / 1000));
 }

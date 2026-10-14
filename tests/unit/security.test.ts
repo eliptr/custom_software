@@ -1,7 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
-import { authorize, consumeRateLimit, readLimitedJson, validateImages } from "../../src/lib/server/security";
+import { type checkRateLimit } from "@vercel/firewall";
+import { authorize, consumeRateLimit, EXTRACTION_RATE_LIMIT_ID, readLimitedJson, validateImages } from "../../src/lib/server/security";
 describe("extraction access and limits", () => {
   const token = "test-token-" + "a".repeat(32);
+  const request = new Request("https://recipe.test/api/extract", { headers: {
+    Authorization: `Bearer ${token}`, Cookie: "private-cookie=secret", "x-real-ip": "192.0.2.1",
+  } });
   it("rejects unconfigured, unauthorized, and cross-origin requests", () => {
     const request = new Request("https://recipe.test/api/extract", { headers: { Authorization: `Bearer ${token}` } });
     expect(authorize(request, token)).toBe(token);
@@ -20,15 +24,51 @@ describe("extraction access and limits", () => {
     expect(() => validateImages({ images: [] })).toThrow();
     expect(() => validateImages({ images: [{ ...image, mimeType: "image/jpeg" }] })).toThrow();
   });
-  it("limits local requests and fails closed in production", async () => {
+  it("limits local requests without calling Vercel and resets at the next window", async () => {
     const key = crypto.randomUUID();
-    for (let i = 0; i < 10; i++) await consumeRateLimit(key, { NODE_ENV: "test" });
-    await expect(consumeRateLimit(key, { NODE_ENV: "test" })).rejects.toMatchObject({ status: 429 });
-    await expect(consumeRateLimit(key, { NODE_ENV: "production" })).rejects.toMatchObject({ status: 503 });
+    const checker = vi.fn<typeof checkRateLimit>();
+    for (let i = 0; i < 10; i++) await consumeRateLimit(key, request, { NODE_ENV: "test" }, checker, 1000);
+    await expect(consumeRateLimit(key, request, { NODE_ENV: "test" }, checker, 1000)).rejects.toMatchObject({ status: 429, retryAfter: 599 });
+    await expect(consumeRateLimit(key, request, { NODE_ENV: "test" }, checker, 600000)).resolves.toBeUndefined();
+    expect(checker).not.toHaveBeenCalled();
   });
-  it("enforces distributed quotas and limiter failures", async () => {
-    const env: NodeJS.ProcessEnv = { NODE_ENV: "production", UPSTASH_REDIS_REST_URL: "https://limiter.test", UPSTASH_REDIS_REST_TOKEN: "test" };
-    await expect(consumeRateLimit(token, env, vi.fn<typeof fetch>().mockResolvedValue(Response.json({ result: 11 })))).rejects.toMatchObject({ status: 429 });
-    await expect(consumeRateLimit(token, env, vi.fn<typeof fetch>().mockRejectedValue(new Error("offline")))).rejects.toMatchObject({ status: 503 });
+  it("fails closed in production outside Vercel instead of using a process-local quota", async () => {
+    const checker = vi.fn<typeof checkRateLimit>();
+    await expect(consumeRateLimit(token, request, { NODE_ENV: "production" }, checker)).rejects.toMatchObject({ status: 503 });
+    expect(checker).not.toHaveBeenCalled();
+  });
+  const env: NodeJS.ProcessEnv = { NODE_ENV: "production", VERCEL: "1", VERCEL_ENV: "preview" };
+  it("uses one shared hashed app-code bucket across IPs, without forwarding credentials", async () => {
+    const checker = vi.fn<typeof checkRateLimit>().mockResolvedValue({ rateLimited: false });
+    await consumeRateLimit(token, request, env, checker);
+    await consumeRateLimit(token, new Request(request, { headers: { "x-real-ip": "192.0.2.2" } }), env, checker);
+    expect(checker.mock.calls[0][0]).toBe(EXTRACTION_RATE_LIMIT_ID);
+    const options = checker.mock.calls[0][1]!;
+    expect(options.rateLimitKey).toBe(checker.mock.calls[1][1]!.rateLimitKey);
+    expect(options.rateLimitKey).not.toContain(token);
+    expect(options.timeout).toBe(3000);
+    expect(options.headers).toBeInstanceOf(Headers);
+    const headers = options.headers as Headers;
+    expect(headers.get("host")).toBe("recipe.test");
+    expect(headers.get("authorization")).toBeNull();
+    expect(headers.get("cookie")).toBeNull();
+    expect(headers.get("x-real-ip")).toBe("192.0.2.1");
+    await consumeRateLimit(token, request, { ...env, VERCEL_ENV: "production" }, checker);
+    expect(checker.mock.calls[2][1]!.rateLimitKey).not.toBe(options.rateLimitKey);
+  });
+  it("returns a retry delay when Vercel reports an exhausted quota", async () => {
+    const checker = vi.fn<typeof checkRateLimit>().mockResolvedValue({ rateLimited: true });
+    await expect(consumeRateLimit(token, request, env, checker)).rejects.toMatchObject({ status: 429, retryAfter: 600 });
+  });
+  it.each([
+    { rateLimited: false, error: "not-found" as const },
+    { rateLimited: true, error: "blocked" as const },
+  ])("blocks extraction if the firewall rule is missing or inaccessible ($error)", async (result) => {
+    const checker = vi.fn<typeof checkRateLimit>().mockResolvedValue(result);
+    await expect(consumeRateLimit(token, request, env, checker)).rejects.toMatchObject({ status: 503 });
+  });
+  it.each([new Error("offline"), new DOMException("timed out", "TimeoutError")])("blocks extraction when the rate-limit service fails", async (error) => {
+    const checker = vi.fn<typeof checkRateLimit>().mockRejectedValue(error);
+    await expect(consumeRateLimit(token, request, env, checker)).rejects.toMatchObject({ status: 503 });
   });
 });
