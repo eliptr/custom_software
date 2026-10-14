@@ -69,8 +69,10 @@ The API caps streamed JSON at 4,000,000 bytes (under Vercel's [4.5 MB function p
 
 ## Verify the preview
 
+Live verification on 2026-10-15: the protected preview for commit `d31a58c` loaded with HTTP 200. An isolated browser used the local production UI to compress the reported orange-chicken PNG to JPEG and forwarded its upload to the deployed `/api/extract` through authenticated `vercel curl`. The real endpoint returned HTTP 200, 16 ingredients, empty instructions, null prep/cook times, and a null salt quantity. The UI displayed the missing-steps warning, saved the reviewed recipe, and reopened it after reload without browser errors. This used a temporary QA profile and did not change the owner's saved collection. The original PNG and prepared JPEG also passed separate direct DeepSeek checks. The earlier invalid model output was not retained, so its exact JSON/field violation could not be recovered.
+
 - Create a manual recipe containing Greek text, ingredients with blank quantities, and ordered steps. Reload and edit it.
-- Configure the two preview secrets and published firewall rule, enter only its private app code, and extract two overlapping screenshots of one recipe. Review against the source, save, and retry an error if one occurs. No live extraction is claimed until this is actually checked.
+- Configure the two preview secrets and published firewall rule, enter only its private app code, and extract two overlapping screenshots of one recipe. Review against the source, save, and retry an error if one occurs. The live check above used one screenshot; multi-screenshot merging is additionally covered by mocked unit/browser tests.
 - Confirm the quota blocks the eleventh authorized request in the same ten-minute window with 429. Missing or unreachable firewall configuration must block extraction with 503; these failure paths are unit-tested with SDK mocks, not verified against a configured live Vercel rule yet.
 - Export `recipe-collection.md`, re-import twice with Merge (no duplicate UUIDs), then test Replace after exporting a backup.
 - Confirm the manifest/icons and **Available offline on this device** indicator. Disconnect and reload; saved recipes and editing must work, while extraction is clearly unavailable.
