@@ -34,6 +34,8 @@ npm run start
 
 On iPhone, open your HTTPS app URL in Safari, tap Share → **Add to Home Screen** → Add. Open it online until **Available offline on this device** appears. iPhone Safari and the installed Home Screen app may have separate browser storage; import your Markdown backup in the installed app if needed. Localhost works for desktop testing; an iPhone needs an HTTPS deployment to install and cache reliably.
 
+The installed app uses a translucent iOS status bar with a dark backdrop that blends into dark mode and keeps white status icons readable in light mode. Header spacing respects the camera/status-bar safe area. Browser theme color follows your chosen appearance, even when it differs from the phone's theme. After an update, close and reopen the Home Screen app. If iOS retains the old white status strip, export your Markdown backup before reinstalling the Home Screen app; restore the backup if its local data is reset.
+
 The first successful visit downloads the shell and its assets. Later versions display an Update action; updates wait until you finish editing. Recipes are not cloud-synced. Browser eviction, clearing site data, or changing devices can remove local data. Export backups regularly; the app requests persistent storage when supported but cannot guarantee it.
 
 ## Validation

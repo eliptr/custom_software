@@ -25,5 +25,10 @@ h1,h2,h3,p{margin:0}h1,h2{font-family:Georgia,'Times New Roman',serif;font-weigh
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*,*:before,*:after{animation:none!important;transition:none!important}}
 .toast{pointer-events:none}.toast button{pointer-events:auto}
 @media(max-width:600px){.toast{top:auto;bottom:calc(90px + env(safe-area-inset-bottom))}}
-html{scroll-behavior:auto}.main-content:focus{outline:none}
+html{scroll-behavior:auto;background:var(--bg);min-height:100%}body{min-height:100dvh}.main-content:focus{outline:none}
+.status-bar-background{display:none}
+@media(display-mode:standalone){.status-bar-background{display:block;position:fixed;top:0;left:0;right:0;height:env(safe-area-inset-top);background:#1c1e1a;pointer-events:none;z-index:110}}
+/* black-translucent puts content behind the iOS status bar; preserve the header's usable height. */
+.app-header{min-height:calc(112px + env(safe-area-inset-top))}
+@media(max-width:600px){.app-header{min-height:calc(94px + env(safe-area-inset-top))}}
 @media(max-width:600px){.filters select{font-size:16px}.capture-banner>.icon-button{min-width:44px;padding:8px}}

@@ -134,3 +134,28 @@ test("malformed import, cancel edits, dark mode, and responsive layout", async (
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await page.screenshot({ path: `test-results/collection-${test.info().project.name}.png`, fullPage: true });
 });
+
+test("browser chrome follows saved appearance and system changes", async ({ page }) => {
+  await page.emulateMedia({ colorScheme: "light" });
+  await page.goto("/");
+  const themeColor = page.locator('meta[name="theme-color"]');
+  await expect(themeColor).toHaveCount(1);
+  await expect(themeColor).toHaveAttribute("content", "#f7f6f0");
+  await expect(page.locator('meta[name="apple-mobile-web-app-status-bar-style"]')).toHaveAttribute("content", "black-translucent");
+  await page.getByRole("button", { name: "Settings and backups" }).click();
+  await page.getByRole("button", { name: "Dark", exact: true }).click();
+  await expect(themeColor).toHaveAttribute("content", "#1c1e1a");
+  await expect(page.locator("html")).toHaveCSS("background-color", "rgb(28, 30, 26)");
+  await expect(page.locator("body")).toHaveCSS("background-color", "rgb(28, 30, 26)");
+  await page.getByRole("button", { name: "Close dialog" }).click();
+  await page.reload();
+  await expect(themeColor).toHaveCount(1);
+  await expect(themeColor).toHaveAttribute("content", "#1c1e1a");
+  await page.getByRole("button", { name: "Settings and backups" }).click();
+  await page.getByRole("button", { name: "System", exact: true }).click();
+  await expect(themeColor).toHaveAttribute("content", "#f7f6f0");
+  await page.emulateMedia({ colorScheme: "dark" });
+  await expect(themeColor).toHaveAttribute("content", "#1c1e1a");
+  await page.getByRole("button", { name: "Light", exact: true }).click();
+  await expect(themeColor).toHaveAttribute("content", "#f7f6f0");
+});

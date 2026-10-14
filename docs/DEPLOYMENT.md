@@ -26,6 +26,10 @@ An existing Git integration has now published a successful protected Preview dep
 
 ## Required extraction configuration
 
+The existing `custom_software` Vercel project was configured on 2026-10-15. Both required variables exist as encrypted `REPLACE_ME` placeholders for Preview and Production. Replace their values in Settings → Environment Variables, then redeploy **Preview** to apply them. `APP_ACCESS_TOKEN` must be a random private code of at least 32 characters; the short placeholder intentionally keeps extraction disabled.
+
+The `recipe-extraction` Firewall rule is published and active (10 requests / 600 seconds, counted by the SDK's `x-vercel-rate-limit-key` header). A live isolated test returned HTTP 204 for ten checks and HTTP 429 for the eleventh, without calling DeepSeek. Automatic system variables are enabled, and the SDK automation bypass is configured as an environment variable. Interactive deployment protection remains enabled and the production Git branch remains `main`. No production code deployment or PR merge was performed. The instructions below describe the configuration for future reference; these settings do not need to be recreated.
+
 | Variable | Value / purpose |
 | --- | --- |
 | `DEEPSEEK_API_KEY` | Server-only DeepSeek API key with sufficient credit |
@@ -50,7 +54,8 @@ The code uses `@vercel/firewall` 1.2.6. Installing the SDK does **not** create a
 | Algorithm | Fixed Window |
 | Window | 10 minutes / 600 seconds |
 | Limit | 10 requests |
-| Rate-limited action | Deny, HTTP 429 |
+| Bucket key | SDK header `x-vercel-rate-limit-key` |
+| Rate-limited action | Rate limit, HTTP 429 |
 
 Do not restrict this SDK rule to the original `/api/extract` path or POST method: the SDK checks it through an internal GET endpoint. The app calls it only after authentication and image validation, before contacting DeepSeek. Save and **Publish** the rule; publishing security configuration does not merge code or deploy `main`. The recommended ten-minute window fits Hobby's maximum window. Additional rules or higher limits depend on your Vercel plan. See the [official SDK setup](https://vercel.com/docs/vercel-firewall/vercel-waf/rate-limiting-sdk) and [rate-limit plan limits](https://vercel.com/docs/vercel-firewall/vercel-waf/rate-limiting).
 
@@ -70,6 +75,7 @@ The API caps streamed JSON at 4,000,000 bytes (under Vercel's [4.5 MB function p
 - Export `recipe-collection.md`, re-import twice with Merge (no duplicate UUIDs), then test Replace after exporting a backup.
 - Confirm the manifest/icons and **Available offline on this device** indicator. Disconnect and reload; saved recipes and editing must work, while extraction is clearly unavailable.
 - On a real iPhone, open Safari → Share → Add to Home Screen. Verify standalone layout, keyboard behavior, safe areas, and offline startup. Desktop mobile emulation does not prove physical iOS installation.
+- For the status-bar update, use the app's Update action, then close and reopen it. The dark status backdrop replaces the pale strip and preserves status-icon contrast in light mode. If iOS retains old installation metadata, export your collection before reinstalling the Home Screen app and restore the backup if needed.
 - On a later preview build, verify the Update banner and that it waits while editing. IndexedDB survives shell updates. Keep service-worker `no-cache` headers.
 
 Each preview hostname and production hostname has its own IndexedDB. Recipes do not automatically move between them; export/import the single Markdown file to migrate. Do not add a service worker that caches API requests or credentials.
