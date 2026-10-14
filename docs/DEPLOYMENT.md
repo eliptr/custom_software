@@ -2,6 +2,19 @@
 
 The app is compatible with Vercel's Next.js framework preset. Do not merge the implementation pull request or deploy directly to production as part of development.
 
+## Publish the already tested local commits
+
+This workspace contains the initialized `main` and finished `dev` branches. On 2026-10-15, publishing was blocked: command-line Git had no usable authenticated credentials and the connected GitHub integration rejected the write with `403 Resource not accessible by integration`. No remote branches, pull request, or deployment were created.
+
+Authenticate Git with your GitHub account through Git Credential Manager (or configure another authorized Git credential method), ensuring write access to `eliptr/custom_software`. Alternatively, reconnect/configure the GitHub integration with repository Contents write access. Keep existing branch protections intact. Then run:
+
+```sh
+git push -u origin main
+git push -u origin dev
+```
+
+Create a pull request with base `main` and compare `dev` in GitHub. Do not merge it until the preview is configured and reviewed. The local commits are preserved; no reset, force-push, or branch deletion is needed.
+
 ## Connect once in Vercel
 
 1. Import GitHub repository `eliptr/custom_software` into a Vercel project. Use Next.js, repository root, Node.js 22, install `npm ci`, build `npm run build`, and default output directory. The build generates the service worker before Next compiles; checked-in icons already exist.

@@ -28,6 +28,8 @@ Browser checks cover unauthorized real API requests and no-store headers; manual
 
 ## Verification limits and remaining setup
 
+- GitHub publishing was attempted but blocked: Git Credential Manager authentication did not complete; the noninteractive retry confirmed no usable password. The connected GitHub integration returned HTTP 403 `Resource not accessible by integration` for its write. The repository remained empty with no remote branches. Local commits on `dev` contain the complete tested implementation. GitHub commit URLs and a PR URL do not exist yet; see deployment instructions for authentication and normal pushes. No protection was bypassed.
+
 - No real DeepSeek request was made: no API key was supplied. Official vision/JSON support was checked, and provider behavior was tested with mocked responses. Configure secrets and verify a real two-screenshot recipe on a private preview.
 - Upstash's API contract was verified from [official REST documentation](https://upstash.com/docs/redis/features/restapi); rate-limit success/failure behavior was mocked, with no hosted Redis instance provisioned.
 - Real iPhone Safari installation and keyboard/safe-area behavior need a physical device. The mobile suite uses Chromium emulation, not Safari/WebKit.
