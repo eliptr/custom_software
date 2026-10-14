@@ -2,6 +2,15 @@ import { extractionSchema, type Extraction } from "../recipe";
 export type Screenshot = { mimeType: "image/jpeg" | "image/png" | "image/webp"; data: string };
 export interface RecipeExtractor { extract(images: Screenshot[], signal?: AbortSignal): Promise<Extraction> }
 
+export class AIResponseError extends Error {
+  constructor(readonly reason: "json" | "schema") {
+    super(reason === "json"
+      ? "The AI returned malformed JSON. Please retry extraction."
+      : "The AI returned data that does not match the recipe format. Please retry extraction.");
+    this.name = "AIResponseError";
+  }
+}
+
 const optionalFields = ["description", "prepTime", "cookTime", "servings", "category"] as const;
 const comparable = (value: string) => value.trim().replace(/\s+/g, " ").toLocaleLowerCase();
 
@@ -39,7 +48,7 @@ export function normalizeExtraction(raw: unknown): Extraction {
     return true;
   });
   if (!result.recipe.title.trim()) result.warnings.push({ field: "title", message: "No title was readable. Please enter one." });
-  if (!result.recipe.instructions.length) result.warnings.push({ field: "instructions", message: "No cooking instructions were readable. Please review the screenshots." });
+  if (!result.recipe.instructions.length) result.warnings.push({ field: "instructions", message: "No cooking instructions were found in the screenshots. You can save the ingredients now and add steps later." });
   if (!result.recipe.ingredients.length) result.warnings.push({ field: "ingredients", message: "No ingredients were readable." });
   result.recipe.ingredients.forEach((item, index, items) => {
     if (item.quantity === null) result.warnings.push({ field: `ingredients.${index}.quantity`, message: `${item.name}: quantity was not provided. Leave it blank or check the source.` });
@@ -51,6 +60,9 @@ export function normalizeExtraction(raw: unknown): Extraction {
 
 export function parseAIResponse(content: string): Extraction {
   const json = content.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
-  try { return normalizeExtraction(JSON.parse(json)); }
-  catch { throw new Error("The AI returned an incomplete or invalid recipe. Please retry with clearer screenshots."); }
+  let raw: unknown;
+  try { raw = JSON.parse(json); }
+  catch { throw new AIResponseError("json"); }
+  try { return normalizeExtraction(raw); }
+  catch { throw new AIResponseError("schema"); }
 }

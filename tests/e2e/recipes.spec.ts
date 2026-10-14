@@ -1,7 +1,8 @@
 import { test, expect, type Page } from "@playwright/test";
 import { exportCollection } from "../../src/lib/markdown";
-import { greekRecipe } from "../fixtures";
+import { greekRecipe, ingredientsOnlyRecipe } from "../fixtures";
 import { toRecipeContent } from "../../src/lib/recipe";
+import { normalizeExtraction } from "../../src/lib/ai/provider";
 
 async function manual(page: Page, title = "Κέικ λεμονιού") {
   await page.getByRole("button", { name: "Add your first recipe" }).click();
@@ -117,6 +118,31 @@ test("screenshots are temporary, errors retry, and extraction is reviewed before
   await expect(page.getByRole("heading", { name: greekRecipe.title, exact: true })).toBeVisible();
   await page.reload();
   await expect(page.locator(".recipe-card")).toHaveCount(1);
+});
+
+test("ingredients-only extraction reviews and saves without inventing steps or missing amounts", async ({ page }) => {
+  await page.goto("/");
+  await page.route("**/api/extract", (route) => route.fulfill({ json: normalizeExtraction({ recipe: ingredientsOnlyRecipe }) }));
+  await page.getByRole("button", { name: "Add your first recipe" }).click();
+  await page.locator('input[type="file"][multiple]').setInputFiles("public/icons/icon-192.png");
+  await page.getByLabel("Private app code", { exact: true }).fill("1234");
+  await page.getByRole("button", { name: "Extract recipe", exact: true }).click();
+  await expect(page.getByLabel(/Recipe title/)).toHaveValue(ingredientsOnlyRecipe.title);
+  await expect(page.getByText(/You can save the ingredients now and add steps later/)).toBeVisible();
+  await expect(page.getByLabel("Quantity", { exact: true }).nth(3)).toHaveValue("");
+  await expect(page.getByLabel("Preparation (minutes)")).toHaveValue("");
+  await expect(page.getByLabel("Cooking (minutes)")).toHaveValue("");
+  await expect(page.locator(".step-editor")).toHaveCount(0);
+  await expect(page.locator(".recipe-card")).toHaveCount(0);
+  await page.getByRole("button", { name: "Save recipe", exact: true }).click();
+  await page.reload();
+  await expect(page.locator(".recipe-card")).toHaveCount(1);
+  await page.locator(".recipe-card").click();
+  await expect(page.getByRole("heading", { name: ingredientsOnlyRecipe.title, exact: true })).toBeVisible();
+  await expect(page.locator(".cooking-steps li")).toHaveCount(0);
+  await page.getByRole("button", { name: "Edit recipe", exact: true }).click();
+  await expect(page.getByLabel("Quantity", { exact: true }).nth(3)).toHaveValue("");
+  await expect(page.locator(".step-editor")).toHaveCount(0);
 });
 
 test("malformed import, cancel edits, dark mode, and responsive layout", async ({ page }) => {

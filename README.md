@@ -18,6 +18,7 @@ On PowerShell, use `Copy-Item .env.example .env.local`. Visit http://localhost:3
 
 - Upload 1–6 screenshots of one recipe. Browser-side compression keeps the upload under Vercel's payload limit. Retry errors without selecting the files again.
 - Review AI output, missing amounts, and ambiguities; edit all recipe fields, ingredients, and step order before saving.
+- Ingredients-only screenshots can be saved with empty cooking steps and a warning, then completed later. Invalid AI output is regenerated once automatically; missing facts are never filled in to make a draft pass validation.
 - Create, view, edit, delete, search by title/ingredient, filter by category/tag, and sort recipes.
 - Check off ingredients while cooking. Choose system, light, or dark appearance.
 - Export everything into **one `recipe-collection.md`**. Preview imports, merge by UUID without duplicates, or explicitly replace the collection.
