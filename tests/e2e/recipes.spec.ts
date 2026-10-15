@@ -135,6 +135,8 @@ test("ingredients-only extraction reviews and saves without inventing steps or m
   await expect(page.locator(".step-editor")).toHaveCount(0);
   await expect(page.locator(".recipe-card")).toHaveCount(0);
   await page.getByRole("button", { name: "Save recipe", exact: true }).click();
+  // The detail view appears only after the IndexedDB save transaction commits.
+  await expect(page.getByRole("heading", { name: ingredientsOnlyRecipe.title, exact: true })).toBeVisible();
   await page.reload();
   await expect(page.locator(".recipe-card")).toHaveCount(1);
   await page.locator(".recipe-card").click();
