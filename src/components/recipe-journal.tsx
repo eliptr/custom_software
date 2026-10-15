@@ -32,11 +32,11 @@ export function RecipeJournal({ recipe, onRestored }: { recipe: Recipe; onRestor
   }
   const notes = [...recipe.cookingNotes].sort((a, b) => b.cookedOn.localeCompare(a.cookedOn) || Date.parse(b.createdAt) - Date.parse(a.createdAt));
   return <div className="recipe-journal">
-    <section className="form-section"><div className="section-heading"><h2>Cooking Notes</h2><Button variant="secondary" onClick={() => edit()}>Add cooking note</Button></div><p className="muted small">Substitutions, adjustments, and observations. Newest attempts first.</p>
-      {notes.length === 0 && <p className="muted small">Your next cooking attempt starts the story.</p>}
+    <section className="form-section"><div className="section-heading"><h2>Cooking Notes</h2><Button variant="secondary" onClick={() => edit()}>Add cooking note</Button></div>
+      {notes.length === 0 && <p className="muted small">No cooking notes yet</p>}
       {notes.map(note => <article className="journal-entry" key={note.id}><div className="section-heading"><time dateTime={note.cookedOn}>{note.cookedOn}</time>{note.rating !== null && <span aria-label={`Rating ${note.rating} out of 5`}>{note.rating}/5</span>}</div><p className="preserve-lines">{note.body}</p><div className="inline-actions"><Button variant="ghost" onClick={() => edit(note)} aria-label={`Edit cooking note ${note.cookedOn}`}>Edit note</Button><Button variant="ghost" onClick={() => { setError(""); setPending({ kind: "note", id: note.id }); }} aria-label={`Delete cooking note ${note.cookedOn}`}>Delete note</Button></div></article>)}
     </section>
-    <section className="form-section"><h2>Recipe revisions</h2><p className="muted small">Use “Save as a new revision” in the editor to keep a snapshot. Cooking notes do not create revisions.</p>{recipe.revisions.length === 0 && <p className="muted small">No revisions saved yet.</p>}
+    <section className="form-section"><h2>Recipe revisions</h2>{recipe.revisions.length === 0 && <p className="muted small">No revisions saved yet.</p>}
       {[...recipe.revisions].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt)).map(revision => <RevisionPreview key={revision.id} revision={revision} onRestore={() => { setError(""); setPending({ kind: "revision", id: revision.id }); }} />)}
     </section>
     {error && !editing && !pending && <p role="alert" className="error-message">{error}</p>}
