@@ -2,8 +2,7 @@
 import { useState, type FormEvent } from "react";
 import { ArrowDown, ArrowUp, ArrowLeft, Plus, Trash2, Save, AlertCircle } from "lucide-react";
 import { type RecipeContent, type Extraction, ingredientSchema, applyMetadataSuggestion, errorMessage, recipeContentSchema, METADATA_FIELDS } from "@/lib/recipe";
-import { persistLocalIdentity } from "@/lib/conversion/identity";
-import { applyIngredientSuggestion } from "@/lib/conversion/suggestions";
+import { applyEquivalentSuggestion } from "@/lib/conversion/equivalent-suggestions";
 import { IngredientConversionOptions } from "./ingredient-conversion-options";
 import { METADATA_LABELS } from "@/lib/metadata";
 import { Button } from "./ui/button";
@@ -25,7 +24,7 @@ export function RecipeEditor({ initial, warnings = [], editing, busy, onSave, on
     try {
       if (!content.title.trim()) throw new Error("Give your recipe a title before saving.");
       if (estimating) throw new Error("Wait for metadata suggestions before saving.");
-      await onSave(recipeContentSchema.parse({ ...content, ingredients: content.ingredients.map(persistLocalIdentity) }), newRevision ? revisionDescription : undefined);
+      await onSave(recipeContentSchema.parse(content), newRevision ? revisionDescription : undefined);
     } catch (cause) { setError(errorMessage(cause)); }
   }
   function moveStep(index: number, direction: number) {
@@ -69,7 +68,7 @@ export function RecipeEditor({ initial, warnings = [], editing, busy, onSave, on
       <label>Servings<input type="number" min={0.1} max={1000} step="any" value={content.servings ?? ""} onChange={(event) => update("servings", event.target.value === "" ? null : Number(event.target.value))} /></label>
       <label>Category<input maxLength={200} placeholder="e.g. Weeknight dinners" value={content.category ?? ""} onChange={(event) => update("category", event.target.value || null)} /></label>
     </div><label className="field-label" htmlFor="tag-input">Tags</label><div className="tag-input"><input id="tag-input" maxLength={100} placeholder="Add a tag" value={tag} onChange={(event) => setTag(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); if (tag.trim() && !content.tags.includes(tag.trim())) update("tags", [...content.tags, tag.trim()]); setTag(""); } }} /><Button type="button" variant="secondary" onClick={() => { if (tag.trim() && !content.tags.includes(tag.trim())) update("tags", [...content.tags, tag.trim()]); setTag(""); }}>Add</Button></div><div className="tag-list">{content.tags.map((value, index) => <button type="button" className="tag" key={index} aria-label={`Remove tag ${value}`} onClick={() => update("tags", content.tags.filter((_, i) => i !== index))}>{value}<span aria-hidden> ×</span></button>)}</div></section>
-    <MetadataSuggestions content={content} rowIds={rowIds} token={token} onTokenChange={onTokenChange} online={online} onBusyChange={setEstimating} onAccept={(field, suggestions) => setContent(previous => applyMetadataSuggestion(previous, suggestions, field))} onAcceptIngredient={binding => setContent(previous => ({ ...previous, ingredients: previous.ingredients.map((item, index) => rowIds[index] === binding.rowId ? applyIngredientSuggestion(item, binding) : item) }))} />
+    <MetadataSuggestions content={content} rowIds={rowIds} token={token} onTokenChange={onTokenChange} online={online} onBusyChange={setEstimating} onAccept={(field, suggestions) => setContent(previous => applyMetadataSuggestion(previous, suggestions, field))} onAcceptIngredient={binding => setContent(previous => ({ ...previous, ingredients: previous.ingredients.map((item, index) => rowIds[index] === binding.rowId ? applyEquivalentSuggestion(item, binding) : item) }))} />
     <section className="form-section"><label className="checkbox-label"><input type="checkbox" checked={newRevision} onChange={event => setNewRevision(event.target.checked)} /> Save as a new revision</label><p className="muted small">Keep an independent snapshot of these ingredients, steps, and metadata. Ordinary saves do not add history.</p>{newRevision && <label className="field-label">Revision description (optional)<input maxLength={1000} value={revisionDescription} onChange={event => setRevisionDescription(event.target.value)} placeholder="e.g. less sugar, longer baking" /></label>}</section>
     <div className="editor-footer"><Button type="button" variant="secondary" disabled={busy} onClick={() => onCancel(dirty)}>Cancel</Button><Button type="submit" disabled={busy || estimating}><Save size={18} />{busy ? "Saving…" : "Save recipe"}</Button></div>
   </form>;

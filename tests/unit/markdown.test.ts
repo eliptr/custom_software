@@ -11,7 +11,7 @@ describe("single Markdown collection", () => {
     recipe.ingredients[0].ingredientType = "flour";
     recipe.revisions[0].snapshot.ingredients[0].ingredientType = "flour";
     const file = exportCollection([recipe]);
-    expect(file).toContain("Format: recipe-tracker/3");
+    expect(file).toContain("Format: recipe-tracker/4");
     expect(file).toContain("### Cooking notes"); expect(file).toContain("### Revisions");
     expect(importCollection(file)).toEqual([recipe]);
     expect(exportCollection(importCollection(file))).toBe(file);
@@ -46,6 +46,6 @@ describe("single Markdown collection", () => {
   });
   it("rejects malformed, truncated, unsupported, trailing, and duplicate records", () => {
     const file = exportCollection([greekRecipe]);
-    for (const bad of ["# random", file.replace("recipe-tracker/3", "recipe-tracker/99"), file.replace("<!-- recipe:end -->", ""), file.replace("2. ", "3. "), file + "garbage", file + file.slice(file.indexOf("<!-- recipe:start -->"))]) expect(() => importCollection(bad)).toThrow();
+    for (const bad of ["# random", file.replace("recipe-tracker/4", "recipe-tracker/99"), file.replace("<!-- recipe:end -->", ""), file.replace("2. ", "3. "), file + "garbage", file + file.slice(file.indexOf("<!-- recipe:start -->"))]) expect(() => importCollection(bad)).toThrow();
   });
 });

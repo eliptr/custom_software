@@ -29,6 +29,9 @@ for (const [type, aliases] of [
   ["tsp", ["tsp", "teaspoon", "teaspoons", "κγ", "κουταλάκι του γλυκού", "κουταλάκια του γλυκού"]],
 ] as const) for (const alias of aliases) spoons.set(key(alias), type);
 
+export function isConventionUnit(raw: string | null): boolean {
+  return Boolean(raw && spoons.has(key(raw.trim().replace(/^us\s+/i, ""))));
+}
 export function resolveUnit(raw: string | null, context: MeasurementContext): UnitDefinition | null {
   if (!raw) return null;
   const direct = definitions.get(key(raw));

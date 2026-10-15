@@ -3,10 +3,14 @@ import { type EstimateResponse, type IdentificationRequest } from "../conversion
 import { localProfile, supportedAIProfile, makeIdentity } from "../conversion/identity";
 import { type Vocabulary } from "../taxonomy";
 import { aiExtractionSchema, resolveChoices, withConservativeSources } from "./metadata";
+import { tolerantEquivalentExtractionSchema } from "./metadata";
+import { normalizeEquivalentPair } from "../conversion/equivalents";
+import { type ConversionRequest, type EquivalentEstimateResponse } from "../conversion/equivalent-suggestions";
 export type Screenshot = { mimeType: "image/jpeg" | "image/png" | "image/webp"; data: string };
 export interface RecipeExtractor {
-  extract(images: Screenshot[], signal?: AbortSignal, vocabulary?: Vocabulary): Promise<Extraction>;
+  extract(images: Screenshot[], signal?: AbortSignal, vocabulary?: Vocabulary, conversionVersion?: 1): Promise<Extraction>;
   estimate(content: RecipeContent, vocabulary: Vocabulary, signal?: AbortSignal, identification?: IdentificationRequest): Promise<EstimateResponse>;
+  estimate(content: RecipeContent, vocabulary: Vocabulary, signal: AbortSignal | undefined, identification: IdentificationRequest | undefined, conversions: ConversionRequest): Promise<EquivalentEstimateResponse>;
 }
 
 export class AIResponseError extends Error {
@@ -90,5 +94,22 @@ export function parseAIResponse(content: string, vocabulary?: Vocabulary): Extra
     recipe.metadataSources = metadata.metadataSources;
     recipe.cookingTemperatures = metadata.cookingTemperatures;
     return normalizeExtraction({ recipe, warnings: [...parsed.warnings, ...warnings] });
+  });
+}
+
+export function parseEquivalentExtraction(content: string, vocabulary: Vocabulary, model: string): Extraction {
+  return parseStructuredResponse(content, raw => {
+    const parsed = tolerantEquivalentExtractionSchema.parse(raw);
+    const { categoryId, tagIds, ...values } = parsed.recipe;
+    const { warnings, ...choices } = resolveChoices(categoryId, tagIds, vocabulary);
+    const ingredients = values.ingredients.map(({ equivalents, ...original }, index) => {
+      const item = ingredientSchema.parse(original);
+      const savedMeasurements = normalizeEquivalentPair(equivalents, item, model);
+      if (equivalents != null && !savedMeasurements) warnings.push({ field: `ingredients.${index}.savedMeasurements`, message: `${item.name}: equivalents were unavailable or invalid. Original measurements are kept.` });
+      return { ...item, savedMeasurements };
+    });
+    const recipe = recipeContentSchema.parse({ ...values, ...choices, ingredients });
+    const metadata = withConservativeSources(recipe);
+    return normalizeExtraction({ recipe: { ...recipe, metadataSources: metadata.metadataSources, cookingTemperatures: metadata.cookingTemperatures }, warnings: [...parsed.warnings, ...warnings] });
   });
 }

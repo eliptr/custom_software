@@ -19,18 +19,18 @@ describe("local measurement conversions", () => {
     expect(convertIngredient(ingredient("water", String(US_TABLESPOON_ML * 1.5), "ml"), "cups")).toMatchObject({ quantity: "1 1/2", unit: "tbsp" });
     expect(convertIngredient(ingredient("water", String(US_TEASPOON_ML / 4), "ml"), "cups")).toMatchObject({ quantity: "1/4", unit: "tsp" });
   });
-  it("distinguishes flour and sugar and matches cautious English/Greek aliases", () => {
-    expect(convertIngredient(ingredient("All-purpose flour", "1", "cup"), "metric")).toMatchObject({ quantity: "120", unit: "g", approximate: true });
-    expect(convertIngredient(ingredient("sugar", "1", "cup"), "metric")).toMatchObject({ quantity: "198", unit: "g" });
-    expect(convertIngredient(ingredient("ΑΛΕΎΡΙ", "120", "γρ."), "cups")).toMatchObject({ quantity: "1", unit: "cup" });
-    expect(convertIngredient(ingredient("coconut flour", "128", "g"), "cups")).toMatchObject({ quantity: "1", unit: "cup" });
+  it("uses only exact dimension math until saved equivalents exist, including catalog ingredients", () => {
+    expect(convertIngredient(ingredient("All-purpose flour", "1", "cup"), "metric")).toMatchObject({ quantity: "236.6", unit: "ml", approximate: false });
+    expect(convertIngredient(ingredient("sugar", "1", "cup"), "metric")).toMatchObject({ quantity: "236.6", unit: "ml" });
+    expect(convertIngredient(ingredient("ΑΛΕΎΡΙ", "120", "γρ."), "cups")).toMatchObject({ quantity: "120", unit: "γρ." });
+    expect(convertIngredient(ingredient("coconut flour", "128", "g"), "cups")).toMatchObject({ quantity: "128", unit: "g" });
     expect(convertIngredient(ingredient("brown sugar", "213", "g"), "cups").converted).toBe(false);
   });
   it("uses direct mass conversion and a selected canonical type for manual recipes", () => {
     expect(convertIngredient(ingredient("chicken", "1.5", "kg"), "metric")).toMatchObject({ quantity: "1.5", unit: "kg" });
     expect(convertIngredient(ingredient("chicken", "1500", "g"), "metric")).toMatchObject({ quantity: "1.5", unit: "kg" });
     const manual = ingredient("my flour brand", "240", "g");
-    expect(convertIngredient({ ...manual, identity: makeIdentity(manual, "all-purpose-flour", "user", true) }, "cups")).toMatchObject({ quantity: "2", unit: "cup" });
+    expect(convertIngredient({ ...manual, identity: makeIdentity(manual, "all-purpose-flour", "user", true) }, "cups")).toMatchObject({ quantity: "240", unit: "g" });
   });
   it("keeps unknown density, packing, and unsupported measures unchanged", () => {
     for (const item of [ingredient("chicken", "200", "g"), ingredient("flour", "1", "pinch"), ingredient("flour", "120", "g", "heaped")]) {

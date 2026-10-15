@@ -1,4 +1,27 @@
-# Single-file Markdown format, version 3
+# Single-file Markdown format, version 4
+
+Exports start with `Format: recipe-tracker/4`. All recipes, notes and revisions remain in **one** UTF-8 `recipe-collection.md`. Version 4 extends the version 3 grammar below: each entry of `### Ingredient conversion context` additionally contains `savedMeasurements`, null for an ingredient without saved equivalents.
+
+A non-null `savedMeasurements` object has these exact fields:
+
+- `form`: `solid` or `liquid`.
+- `metric`: null or `{amount, unit, source}`. `amount` is a finite positive number ≤1e9. Solids use `g`/`kg`; liquids use `ml`/`L`.
+- `cups`: null or `{amount, unit, source}` with the same numeric bounds and US `cup`, `tbsp`, or `tsp` units.
+- Each side's `source`: `exact` for deterministic same-dimension unit math, otherwise `estimated` for an AI cooking approximation. Liquid pairs express one shared volume; direct source relationships are enforced during normalization.
+- `assumptions`: nullable text ≤1,000 characters describing ingredient form/preparation and approximation assumptions.
+- `input`: `{name, quantity, unit, notes, measurementContext}` containing the exact original ingredient strings/nulls and complete source convention/number context at estimation time. Unlike legacy identity context, this includes the original quantity.
+- `inputFingerprint`: 16 lowercase hexadecimal characters calculated by `equivalentFingerprint` over canonical sorted-key JSON of `input`.
+- `model`: nonempty string ≤100 characters identifying the generating model.
+- `promptVersion`: nonempty string ≤100 characters, currently `ingredient-equivalents/1`.
+- `estimatedAt`: timezone-aware ISO timestamp.
+
+The accepted numeric pair and input remain a fixed basis. Quantity edits change the ingredient's original quantity string, not the pair's basis. Display derives a fresh ratio from that basis without cumulative rounding. Other identifying changes, ambiguous quantities, unsupported future prompt versions, invalid fingerprints, or inconsistent exact math disable the estimate without deleting it. A missing side falls back to exact same-dimension math when available, then the unchanged original.
+
+Revision snapshot ingredient objects contain the same `savedMeasurements` field. Formats 1–3 and IndexedDB versions 1–3 add null saved measurements, including historical snapshots, without changing original text, dates, notes, profile data or revision IDs. Repeated imports remain idempotent. The display preference and request-local UUIDs remain device/transient state outside backups. Legacy profile identities remain round-trip data and compatibility metadata; they no longer drive new display density estimates.
+
+All existing canonical serialization, validation, ordered sections, single-file limits and atomic merge/replace rules remain unchanged. Export always writes version 4; use the updated app when sharing new backups.
+
+## Version 3 reference grammar
 
 Exports start with `Format: recipe-tracker/3`. Version 3 retains the version 2 grammar below, with one additional required section **between Ingredients and Instructions**:
 

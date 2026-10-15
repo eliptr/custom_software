@@ -4,7 +4,7 @@ import { migrateRecipe } from "./conversion/migrate";
 import { ingredientSchema } from "./recipe";
 import { z } from "zod";
 
-export const FORMAT_VERSION = "recipe-tracker/3";
+export const FORMAT_VERSION = "recipe-tracker/4";
 export const MAX_IMPORT_BYTES = 5 * 1024 * 1024;
 export const MAX_COLLECTION_RECIPES = 2000;
 const start = "<!-- recipe:start -->";
@@ -24,7 +24,7 @@ export function exportCollection(recipes: Recipe[]): string {
     `- Cooking temperatures: ${scalar(recipe.cookingTemperatures)}`, `- Metadata sources: ${scalar(recipe.metadataSources)}`,
     "", "### Ingredients", "",
     ...recipe.ingredients.map((item) => `- ${[item.name, item.quantity, item.unit, item.notes, item.ingredientType].map(scalar).join(" | ")}`),
-    "", "### Ingredient conversion context", "", "```json", canonicalJSON(recipe.ingredients.map(({ measurementContext, identity, conversionMode }) => ({ measurementContext, identity, conversionMode })), 2), "```",
+    "", "### Ingredient conversion context", "", "```json", canonicalJSON(recipe.ingredients.map(({ measurementContext, identity, conversionMode, savedMeasurements }) => ({ measurementContext, identity, conversionMode, savedMeasurements })), 2), "```",
     "", "### Instructions", "",
     ...recipe.instructions.map((step, index) => `${index + 1}. ${scalar(step)}`),
     "", "### Cooking notes", "", ...recipe.cookingNotes.map(note => `- ${scalar(note)}`),
@@ -60,9 +60,10 @@ export function importCollection(markdown: string): Recipe[] {
   const read = () => { skip(); return lines[cursor++]; };
   if (read() !== "# Recipe collection") throw new Error("Expected '# Recipe collection' heading");
   const format = read();
-  if (!["Format: recipe-tracker/1", "Format: recipe-tracker/2", `Format: ${FORMAT_VERSION}`].includes(format)) throw new Error("Unsupported or missing format version; expected recipe-tracker/1, /2 or /3");
+  if (!["Format: recipe-tracker/1", "Format: recipe-tracker/2", "Format: recipe-tracker/3", `Format: ${FORMAT_VERSION}`].includes(format)) throw new Error("Unsupported or missing format version; expected recipe-tracker/1, /2, /3 or /4");
   const version2 = format !== "Format: recipe-tracker/1";
-  const version3 = format === `Format: ${FORMAT_VERSION}`;
+  const version3 = format === "Format: recipe-tracker/3" || format === `Format: ${FORMAT_VERSION}`;
+  const version4 = format === `Format: ${FORMAT_VERSION}`;
   const recipes: Recipe[] = [];
   const ids = new Set<string>();
   while (true) {
@@ -94,7 +95,8 @@ export function importCollection(markdown: string): Recipe[] {
         const contextLines: string[] = [];
         while (cursor < lines.length && lines[cursor] !== "```") contextLines.push(lines[cursor++]);
         if (read() !== "```") throw new Error("Unclosed ingredient conversion context");
-        const contexts = z.array(ingredientSchema.pick({ measurementContext: true, identity: true, conversionMode: true }).required()).max(200).parse(JSON.parse(contextLines.join("\n")));
+        const contextSchema = version4 ? ingredientSchema.pick({ measurementContext: true, identity: true, conversionMode: true, savedMeasurements: true }) : ingredientSchema.pick({ measurementContext: true, identity: true, conversionMode: true });
+        const contexts = z.array(contextSchema.required()).max(200).parse(JSON.parse(contextLines.join("\n")));
         if (contexts.length !== ingredients.length) throw new Error("Each ingredient needs exactly one conversion context in the same order");
         contexts.forEach((context, index) => { ingredients[index] = { ...(ingredients[index] as object), ...context }; });
       }

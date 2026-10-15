@@ -3,7 +3,6 @@ import { exportCollection } from "../../src/lib/markdown";
 import { greekRecipe, ingredientsOnlyRecipe } from "../fixtures";
 import { metadataSchema, toRecipeContent } from "../../src/lib/recipe";
 import { normalizeExtraction } from "../../src/lib/ai/provider";
-import { CATALOG_VERSION } from "../../src/lib/conversion/catalog";
 
 async function manual(page: Page, title = "Κέικ λεμονιού") {
   await page.getByRole("button", { name: "Add your first recipe" }).click();
@@ -211,7 +210,7 @@ test("cards show cooking time alone, method-specific Celsius temperatures and se
   await page.screenshot({ path: `test-results/metadata-card-${test.info().project.name}.png`, fullPage: true });
 });
 
-test("local measurement toggle persists, distinguishes supported densities, and preserves originals", async ({ page }) => {
+test("local measurement toggle persists and preserves originals until saved estimates exist", async ({ page }) => {
   let calls = 0; await page.route("**/api/*", route => { calls++; return route.abort(); });
   await page.goto("/"); await manual(page);
   await page.getByRole("button", { name: "Edit recipe", exact: true }).click();
@@ -221,9 +220,9 @@ test("local measurement toggle persists, distinguishes supported densities, and 
   await page.getByLabel("Quantity", { exact: true }).nth(1).fill("200"); await page.getByLabel("Unit", { exact: true }).nth(1).fill("g");
   await page.getByRole("button", { name: "Save recipe", exact: true }).click();
   await page.getByRole("button", { name: "Cups / Spoons", exact: true }).click();
-  await expect(page.locator(".cooking-ingredients li").first()).toContainText("1 cup Αλεύρι");
+  await expect(page.locator(".cooking-ingredients li").first()).toContainText("120 g Αλεύρι");
   await expect(page.locator(".cooking-ingredients li").nth(1)).toContainText("200 g Chicken");
-  await expect(page.getByText(/No verified profile with compatible preparation/)).toBeVisible();
+  await expect(page.locator(".cooking-ingredients li").first()).toContainText("No saved equivalent");
   await page.reload(); await page.locator(".recipe-card").click();
   await expect(page.getByRole("button", { name: "Cups / Spoons", exact: true })).toHaveAttribute("aria-pressed", "true");
   await page.getByRole("button", { name: "Metric", exact: true }).click();
@@ -244,7 +243,7 @@ test("re-estimation preserves in-flight manual edits until per-field approval", 
     expect(input.vocabulary.categories).toContainEqual({ id: "category:Γλυκά", name: "Γλυκά" });
     expect(input.vocabulary.tags).toContainEqual({ id: "tag:εύκολο", name: "εύκολο" });
     expect(input.recipe.ingredients[0].name).toBe("Αλεύρι");
-    await gate; await route.fulfill({ json: { metadata: suggested, requestId: input.identification.requestId, ingredientSuggestions: [] } });
+    await gate; await route.fulfill({ json: { metadata: suggested, requestId: input.conversions.requestId, conversionSuggestions: [] } });
   });
   await page.getByRole("button", { name: "Edit recipe", exact: true }).click();
   await page.getByLabel("Cooking (minutes)").fill("35");
@@ -264,90 +263,6 @@ test("re-estimation preserves in-flight manual edits until per-field approval", 
   await page.getByRole("button", { name: "Save recipe", exact: true }).click();
   await expect(page.locator(".page-heading h1")).toHaveText("My handwritten title");
   await expect(page.locator(".detail-meta")).toContainText("≈ 20 min cook");
-});
-
-test("ingredient suggestions follow reordered rows and stay independent of metadata", async ({ page }) => {
-  await page.goto("/"); await manual(page);
-  await page.getByRole("button", { name: "Edit recipe", exact: true }).click();
-  await page.getByLabel("Ingredient 1 name").fill("sugar, granulated white");
-  await page.getByLabel("Quantity", { exact: true }).fill("198"); await page.getByLabel("Unit", { exact: true }).fill("g");
-  await page.getByRole("button", { name: "Add ingredient", exact: true }).click();
-  await page.getByLabel("Ingredient 2 name").fill("Chicken");
-  await page.getByLabel("Private app code", { exact: true }).fill("1234");
-  let release!: () => void;
-  const gate = new Promise<void>(resolve => { release = resolve; });
-  let calls = 0;
-  await page.route("**/api/estimate", async route => {
-    calls++; const input = route.request().postDataJSON();
-    const target = input.identification.targets.find((target: { index: number }) => target.index === 0);
-    expect(target).toBeTruthy();
-    const suggested = metadataSchema.strip().parse({ ...input.recipe, title: "Suggested title" });
-    await gate; await route.fulfill({ json: { metadata: suggested, requestId: input.identification.requestId, ingredientSuggestions: [{ ref: target.ref, fingerprint: target.fingerprint, profileId: "granulated-sugar", catalogVersion: CATALOG_VERSION }] } });
-  });
-  const requested = page.waitForRequest("**/api/estimate");
-  await page.getByRole("button", { name: "Re-estimate metadata", exact: true }).click(); await requested;
-  await page.getByRole("button", { name: "Move ingredient 1 down", exact: true }).click();
-  await page.getByLabel("Quantity", { exact: true }).nth(1).fill("396");
-  release();
-  const accept = page.getByRole("button", { name: "Accept profile sugar, granulated white", exact: true });
-  await expect(accept).toBeEnabled();
-  await page.getByRole("button", { name: "Accept Title", exact: true }).click();
-  await expect(page.getByLabel(/Recipe title/)).toHaveValue("Suggested title");
-  await expect(page.getByLabel("Ingredient 1 name")).toHaveValue("Chicken");
-  await expect(page.locator('[aria-label="Ingredient identity suggestions"]')).toContainText("All-purpose flour (local; needs review)");
-  await accept.click(); await page.getByRole("button", { name: "Save recipe", exact: true }).click();
-  await page.getByRole("button", { name: "Cups / Spoons", exact: true }).click();
-  await expect(page.locator(".cooking-ingredients li").nth(1)).toContainText("2 cup sugar, granulated white");
-  await expect(page.locator(".cooking-ingredients li").nth(1)).toContainText("Original: 396 g");
-  expect(calls).toBe(1);
-});
-
-test("stale and removed ingredient suggestions cannot change another row", async ({ page }) => {
-  await page.goto("/"); await manual(page); await page.getByRole("button", { name: "Edit recipe", exact: true }).click();
-  await page.getByLabel("Ingredient 1 name").fill("sugar, granulated white");
-  await page.getByRole("button", { name: "Add ingredient", exact: true }).click(); await page.getByLabel("Ingredient 2 name").fill("sugar, white");
-  await page.getByLabel("Private app code", { exact: true }).fill("1234");
-  let release!: () => void; const gate = new Promise<void>(resolve => { release = resolve; });
-  await page.route("**/api/estimate", async route => {
-    const input = route.request().postDataJSON(); await gate;
-    await route.fulfill({ json: { metadata: metadataSchema.strip().parse(input.recipe), requestId: input.identification.requestId, ingredientSuggestions: input.identification.targets.map((target: { ref: string; fingerprint: string }) => ({ ref: target.ref, fingerprint: target.fingerprint, profileId: "granulated-sugar", catalogVersion: CATALOG_VERSION })) } });
-  });
-  const requested = page.waitForRequest("**/api/estimate"); await page.getByRole("button", { name: "Re-estimate metadata", exact: true }).click(); await requested;
-  await page.locator(".ingredient-notes input").first().fill("packed");
-  await page.getByRole("button", { name: "Remove ingredient 2", exact: true }).click(); release();
-  await expect(page.getByRole("button", { name: "Accept profile sugar, granulated white", exact: true })).toBeDisabled();
-  await expect(page.getByRole("button", { name: "Accept profile sugar, white", exact: true })).toBeDisabled();
-  await page.getByRole("button", { name: "Reject profile sugar, granulated white", exact: true }).click();
-  await page.getByRole("button", { name: "Reject profile sugar, white", exact: true }).click();
-  await expect(page.getByLabel("Ingredient 1 name")).toHaveValue("sugar, granulated white");
-  await expect(page.locator(".ingredient-notes input")).toHaveValue("packed");
-});
-
-test("manual profiles, keep-original, and source conventions persist offline without API calls", async ({ page, context }) => {
-  let calls = 0; await page.route("**/api/*", route => { calls++; return route.abort(); });
-  await page.goto("/"); await manual(page); await page.getByRole("button", { name: "Edit recipe", exact: true }).click();
-  await page.getByLabel("Ingredient 1 name").fill("My brown sugar");
-  await page.getByLabel("Quantity", { exact: true }).fill("213"); await page.getByLabel("Unit", { exact: true }).fill("g");
-  await page.getByText("Measurement conversion", { exact: true }).click();
-  await page.getByRole("combobox", { name: "Conversion ingredient 1", exact: true }).selectOption("packed-brown-sugar");
-  await page.getByLabel("I confirm this profile's preparation / packing assumptions", { exact: true }).check();
-  await page.getByRole("combobox", { name: "Source cup/spoon convention 1", exact: true }).selectOption("metric-250");
-  await page.getByRole("button", { name: "Confirm profile for current ingredient text", exact: true }).click();
-  await page.getByRole("button", { name: "Save recipe", exact: true }).click();
-  await page.getByRole("button", { name: "Cups / Spoons", exact: true }).click();
-  await expect(page.locator(".cooking-ingredients li")).toContainText("1 cup My brown sugar");
-  await page.evaluate(async () => { await navigator.serviceWorker.ready; });
-  await context.setOffline(true); await page.reload(); await page.locator(".recipe-card").click();
-  await expect(page.locator(".cooking-ingredients li")).toContainText("1 cup My brown sugar");
-  await page.getByRole("button", { name: "Edit recipe", exact: true }).click(); await page.getByText("Measurement conversion", { exact: true }).click();
-  await expect(page.getByRole("combobox", { name: "Conversion ingredient 1", exact: true })).toHaveValue("packed-brown-sugar");
-  await expect(page.getByRole("combobox", { name: "Source cup/spoon convention 1", exact: true })).toHaveValue("metric-250");
-  await page.getByRole("checkbox", { name: "Keep original measurement 1", exact: true }).check();
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-  await page.screenshot({ path: `test-results/conversion-options-${test.info().project.name}.png`, fullPage: true });
-  await page.getByRole("button", { name: "Save recipe", exact: true }).click();
-  await expect(page.locator(".cooking-ingredients li")).toContainText("213 g My brown sugar");
-  await expect(page.locator(".cooking-ingredients li")).toContainText("Original measurement selected"); expect(calls).toBe(0);
 });
 
 test("cooking notes CRUD stays separate from explicit revisions and confirmed restore preserves history", async ({ page }) => {

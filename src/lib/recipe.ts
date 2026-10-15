@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { INGREDIENT_TYPES } from "./ingredient-types";
 import { ingredientIdentitySchema, measurementContextSchema } from "./conversion/schema";
+import { savedMeasurementsSchema } from "./conversion/equivalents-schema";
 
 const text = (max: number) => z.string().max(max);
 const nullableText = (max: number) => text(max).nullable();
@@ -15,6 +16,7 @@ export const ingredientSchema = z.object({
   measurementContext: measurementContextSchema,
   identity: ingredientIdentitySchema,
   conversionMode: z.enum(["auto", "original"]).default("auto"),
+  savedMeasurements: savedMeasurementsSchema.nullable().default(null),
 }).strict();
 
 export const METADATA_FIELDS = ["title", "prepTime", "cookTime", "cookingTemperatures", "servings", "category", "tags"] as const;

@@ -22,16 +22,16 @@ describe("reported measurement regressions", () => {
     expect(convertIngredient(item("flour", "1,000"), "cups").converted).toBe(false);
   });
   it.each([[".5", 0.5], [",5", 0.5], ["0.026", 0.026], ["1,5", 1.5]])("supports safe decimal %s", (text, value) => expect(parseQuantity(String(text))).toBe(value));
-  it.each(["cup", "ml"])("checks sifted preparation for %s in both display modes", unit => {
+  it.each(["cup", "ml"])("never turns sifted %s into grams without a saved estimate", unit => {
     const ingredient = { ...item("flour", "100", unit, "sifted"), ingredientType: "flour" as const };
-    for (const mode of ["metric", "cups"] as const) expect(convertIngredient(ingredient, mode)).toMatchObject({ converted: false, quantity: "100", unit });
+    for (const mode of ["metric", "cups"] as const) { const result = convertIngredient(ingredient, mode); expect(result.approximate).toBe(false); expect(["ml", "L", "cup", "tbsp", "tsp"]).toContain(result.unit); }
   });
   it("rejects heaped identity even if legacy AI called it flour", () => {
     expect(convertIngredient({ ...item("heaped flour", "1", "cup"), ingredientType: "flour" }, "metric")).toMatchObject({ converted: false, unit: "cup" });
   });
   it("never silently assumes packed brown sugar from a legacy classification", () => {
     expect(convertIngredient({ ...item("brown sugar", "213"), ingredientType: "brown-sugar" }, "cups").converted).toBe(false);
-    expect(convertIngredient(item("brown sugar", "213", "g", "packed"), "cups")).toMatchObject({ quantity: "1", unit: "cup" });
+    expect(convertIngredient(item("brown sugar", "213", "g", "packed"), "cups")).toMatchObject({ quantity: "213", unit: "g" });
   });
   it.each(["loosely-packed", "lightly packed", "not firmly packed", "loose"])("rejects nonstandard packing: %s", notes => {
     const ingredient = item("brown sugar", "213", "g", notes);
@@ -41,7 +41,7 @@ describe("reported measurement regressions", () => {
   });
   it("does not let a contradictory legacy identity turn coconut flour into all-purpose flour", () => {
     const result = convertIngredient({ ...item("coconut flour"), ingredientType: "flour" }, "cups");
-    expect(result.quantity).toBe("15/16"); expect(result.reason).toContain("Coconut flour");
+    expect(result.quantity).toBe("120"); expect(result.unit).toBe("g");
   });
   it("ignores harmless divided but preserves meaningful forms and Greek aliases", () => {
     expect(localProfile(item("all-purpose flour, divided"))?.id).toBe("all-purpose-flour");
@@ -69,8 +69,8 @@ describe("conversion authority and conventions", () => {
     expect(convertIngredient(item("juice", "1", "cup"), "metric").convention).toContain("assumed");
   });
   it("uses specific density profiles and never a universal water density", () => {
-    expect(convertIngredient(item("flour", "1", "cup"), "metric").quantity).toBe("120");
-    expect(convertIngredient(item("sugar", "1", "cup"), "metric").quantity).toBe("198");
+    expect(convertIngredient(item("flour", "1", "cup"), "metric").quantity).toBe("236.6");
+    expect(convertIngredient(item("sugar", "1", "cup"), "metric").quantity).toBe("236.6");
     expect(convertIngredient(item("olive oil", "1", "cup"), "metric").unit).toBe("ml");
     expect(resolveIdentity(item("olive oil")).profile?.id).toBe("olive-oil");
     expect(resolveIdentity(item("vegetable oil")).profile?.id).toBe("vegetable-oil");
@@ -82,9 +82,9 @@ describe("conversion authority and conventions", () => {
   it("persists user selections, revalidates context, and never overrides incompatible preparation", () => {
     const original = item("my brand", "213");
     const selected = { ...original, identity: makeIdentity(original, "packed-brown-sugar", "user", true) };
-    expect(convertIngredient(selected, "cups").quantity).toBe("1");
+    expect(convertIngredient(selected, "cups").quantity).toBe("213");
     expect(createIdentificationRequest([selected]).targets).toEqual([]);
-    expect(convertIngredient({ ...selected, quantity: "426" }, "cups").quantity).toBe("2");
+    expect(convertIngredient({ ...selected, quantity: "426" }, "cups").quantity).toBe("426");
     expect(convertIngredient({ ...selected, notes: "loosely packed" }, "cups").converted).toBe(false);
     const incompatible = item("brown sugar", "213", "g", "loosely packed"); incompatible.identity = makeIdentity(incompatible, "packed-brown-sugar", "user", true);
     expect(resolveIdentity(incompatible).profile).toBeNull();

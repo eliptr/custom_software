@@ -15,6 +15,9 @@ export class RecipeDatabase extends Dexie {
     this.version(3).stores({ recipes: "id, title, createdAt, updatedAt, category, *tags" }).upgrade(async transaction => {
       await transaction.table("recipes").toCollection().modify(recipe => Object.assign(recipe, migrateRecipe(recipe)));
     });
+    this.version(4).stores({ recipes: "id, title, createdAt, updatedAt, category, *tags" }).upgrade(async transaction => {
+      await transaction.table("recipes").toCollection().modify(recipe => Object.assign(recipe, migrateRecipe(recipe)));
+    });
   }
 }
 export const db = new RecipeDatabase();

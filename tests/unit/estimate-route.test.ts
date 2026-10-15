@@ -3,6 +3,7 @@ import { metadataSchema, toRecipeContent } from "../../src/lib/recipe";
 import { collectionVocabulary } from "../../src/lib/taxonomy";
 import { greekRecipe } from "../fixtures";
 import { createIdentificationRequest } from "../../src/lib/conversion/suggestions";
+import { createConversionRequest, normalizeEquivalentSuggestions } from "../../src/lib/conversion/equivalent-suggestions";
 const mocks = vi.hoisted(() => ({ checkRateLimit: vi.fn(), estimate: vi.fn() }));
 vi.mock("@vercel/firewall", () => ({ checkRateLimit: mocks.checkRateLimit }));
 vi.mock("../../src/lib/ai/deepseek", () => ({ DeepSeekExtractor: class { estimate = mocks.estimate; } }));
@@ -49,5 +50,28 @@ describe("protected metadata endpoint", () => {
     const stale = { ...identification, targets: identification.targets.map(target => ({ ...target, fingerprint: "0000000000000000" })) };
     expect((await POST(upload({ recipe, vocabulary, identification: stale }))).status).toBe(400);
     expect(mocks.estimate).not.toHaveBeenCalled(); expect(mocks.checkRateLimit).not.toHaveBeenCalled();
+  });
+  it("returns versioned equivalents from one protected request, with every ingredient targeted", async () => {
+    const conversions = createConversionRequest(recipe.ingredients);
+    expect(conversions.targets).toHaveLength(recipe.ingredients.length);
+    const target = conversions.targets[0];
+    const conversionSuggestions = normalizeEquivalentSuggestions([{ ref: target.ref, fingerprint: target.fingerprint, equivalents: { form: "solid", metric: { amount: 180, unit: "g" }, cups: { amount: 1.5, unit: "cup" }, assumptions: null } }], conversions, recipe.ingredients, "test");
+    const result = { metadata: suggestions, requestId: conversions.requestId, conversionSuggestions };
+    mocks.estimate.mockResolvedValue(result);
+    const response = await POST(upload({ recipe, vocabulary, conversionVersion: 1, conversions }));
+    expect(response.status).toBe(200); expect(await response.json()).toEqual(result);
+    expect(mocks.estimate).toHaveBeenCalledExactlyOnceWith(recipe, vocabulary, expect.any(AbortSignal), undefined, conversions);
+    expect(mocks.checkRateLimit).toHaveBeenCalledTimes(1);
+  });
+  it("rejects unversioned, incomplete, duplicate and quantity-stale conversion targets before spending quota", async () => {
+    const conversions = createConversionRequest(recipe.ingredients);
+    const inputs = [
+      { recipe, vocabulary, conversions }, { recipe, vocabulary, conversionVersion: 1 },
+      { recipe, vocabulary, conversionVersion: 1, conversions: { ...conversions, targets: [] } },
+      { recipe, vocabulary, conversionVersion: 1, conversions: { ...conversions, targets: [conversions.targets[0], conversions.targets[0]] } },
+      { recipe: { ...recipe, ingredients: recipe.ingredients.map((item, index) => index ? item : { ...item, quantity: "999" }) }, vocabulary, conversionVersion: 1, conversions },
+    ];
+    for (const input of inputs) expect((await POST(upload(input))).status).toBe(400);
+    expect(mocks.checkRateLimit).not.toHaveBeenCalled(); expect(mocks.estimate).not.toHaveBeenCalled();
   });
 });
