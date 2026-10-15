@@ -83,7 +83,8 @@ test("offline reload preserves recipes and local editing", async ({ page, contex
   await page.goto("/"); await manual(page);
   await page.evaluate(async () => { await navigator.serviceWorker.ready; });
   await page.waitForFunction(() => Boolean(navigator.serviceWorker.controller));
-  await expect(page.getByText("Available offline on this device")).toBeVisible();
+  await expect(page.getByText("Available offline on this device")).toBeAttached();
+  await expect(page.getByText("Available offline on this device")).toBeHidden();
   await context.setOffline(true); await page.reload();
   await expect(page.getByText(/You’re offline/)).toBeVisible();
   await page.locator(".recipe-card").click();

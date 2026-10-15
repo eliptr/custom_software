@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { ArrowLeft, Clock3, Pencil, Trash2 } from "lucide-react";
 import { type Recipe } from "@/lib/recipe";
 import { convertIngredient, type MeasurementSystem } from "@/lib/measurements";
@@ -7,12 +7,12 @@ import { readMeasurementPreference, writeMeasurementPreference } from "@/lib/pre
 import { Button } from "./ui/button";
 import { RecipeMetadata } from "./recipe-metadata";
 import { RecipeJournal } from "./recipe-journal";
-export function RecipeDetails({ recipe, onBack, onEdit, onDelete }: { recipe: Recipe; onBack: () => void; onEdit: () => void; onDelete: () => void }) {
+export function RecipeDetails({ recipe, onBack, onEdit, onDelete, headerAction }: { recipe: Recipe; onBack: () => void; onEdit: () => void; onDelete: () => void; headerAction?: ReactNode }) {
   const [checked, setChecked] = useState<Set<number>>(new Set());
   const [system, setSystem] = useState<MeasurementSystem>(() => readMeasurementPreference());
   const [preferenceError, setPreferenceError] = useState(false);
   function changeSystem(value: MeasurementSystem) { setSystem(value); setPreferenceError(!writeMeasurementPreference(value)); }
-  return <article className="recipe-detail"><button className="back-link" onClick={onBack}><ArrowLeft size={18} /> All recipes</button>
+  return <article className="recipe-detail"><div className="detail-toolbar"><button className="back-link" onClick={onBack}><ArrowLeft size={18} /> All recipes</button>{headerAction}</div>
     <div className="page-heading"><p className="eyebrow">{recipe.category || "FROM YOUR COLLECTION"}</p><h1>{recipe.title}</h1>{recipe.description && <p className="recipe-description">{recipe.description}</p>}</div>
     <div className="detail-meta">{recipe.prepTime !== null && <span><Clock3 size={17} />{recipe.metadataSources.prepTime === "estimated" ? "≈ " : ""}{recipe.prepTime} min prep</span>}<RecipeMetadata recipe={recipe} /></div>
     {recipe.tags.length > 0 && <div className="tag-list">{recipe.tags.map((tag, index) => <span className="tag" key={index}>{tag}</span>)}</div>}
