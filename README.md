@@ -18,7 +18,10 @@ On PowerShell, use `Copy-Item .env.example .env.local`. Visit http://localhost:3
 
 - Upload 1–6 screenshots of one recipe. Browser-side compression keeps the upload under Vercel's payload limit. Retry errors without selecting the files again.
 - Review AI output, missing amounts, and ambiguities; edit all recipe fields, ingredients, and step order before saving.
-- Ingredients-only screenshots can be saved with empty cooking steps and a warning, then completed later. Invalid AI output is regenerated once automatically; missing facts are never filled in to make a draft pass validation.
+- Ingredients-only screenshots can be saved with empty cooking steps and a warning, then completed later. Invalid AI output is regenerated once automatically. Ingredients, quantities, and instructions are never invented; reasonable metadata estimates are labelled for review.
+- Review suggested titles, prep/cooking time, method-specific Celsius temperatures, servings, and existing category/tag matches. In the editor, **Re-estimate metadata** proposes changes from the current ingredients and steps; accept/reject each field. Edits made while the request is running remain intact.
+- Cards show cooking time only (excluding preparation), temperatures with methods, and servings. Inside a recipe, switch **Metric / Cups / Spoons** instantly; the preference is remembered locally. Original measurements remain intact. Unsupported conversions stay original with an explanation; see [conversion assumptions](docs/MEASUREMENTS.md).
+- Add dated cooking notes with optional 1–5 ratings. Edit/delete notes independently from recipe revisions. Check **Save as a new revision** in the editor to keep a named snapshot; view and confirm restoring it without deleting notes or history.
 - Create, view, edit, delete, search by title/ingredient, filter by category/tag, and sort recipes.
 - Check off ingredients while cooking. Choose system, light, or dark appearance.
 - Export everything into **one `recipe-collection.md`**. Preview imports, merge by UUID without duplicates, or explicitly replace the collection.
@@ -38,6 +41,10 @@ On iPhone, open your HTTPS app URL in Safari, tap Share → **Add to Home Screen
 The installed app uses a translucent iOS status bar with a dark backdrop that blends into dark mode and keeps white status icons readable in light mode. Header spacing respects the camera/status-bar safe area. Browser theme color follows your chosen appearance, even when it differs from the phone's theme. After an update, close and reopen the Home Screen app. If iOS retains the old white status strip, export your Markdown backup before reinstalling the Home Screen app; restore the backup if its local data is reset.
 
 The first successful visit downloads the shell and its assets. Later versions display an Update action; updates wait until you finish editing. Recipes are not cloud-synced. Browser eviction, clearing site data, or changing devices can remove local data. Export backups regularly; the app requests persistent storage when supported but cannot guarantee it.
+
+This update migrates IndexedDB from version 1 to 2 in place. Exported Markdown now uses version 2 and includes notes, revisions, temperature/provenance, and canonical ingredient types; old version 1 backups still import. Update the app before importing a version 2 backup on another device. History is bounded at 100 revisions and 500 notes per recipe within the existing 5 MiB collection limit; capacity errors preserve current data.
+
+Categories and tags are created explicitly by entering them in a recipe editor and saving. AI can select only labels already present in the saved collection; with an empty vocabulary it leaves classification empty. Stable IDs derived from the exact labels are validated against a fresh local vocabulary on each request. There is no cloud taxonomy or new account setup. Re-estimation uses the same private app code, provider key, and shared quota as screenshots. Notes/history are never included in AI requests.
 
 ## Validation
 

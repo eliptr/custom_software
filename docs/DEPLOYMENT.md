@@ -81,3 +81,11 @@ Live verification on 2026-10-15: the protected preview for commit `d31a58c` load
 - On a later preview build, verify the Update banner and that it waits while editing. IndexedDB survives shell updates. Keep service-worker `no-cache` headers.
 
 Each preview hostname and production hostname has its own IndexedDB. Recipes do not automatically move between them; export/import the single Markdown file to migrate. Do not add a service worker that caches API requests or credentials.
+
+## Metadata and journal update (database/Markdown v2)
+
+No environment-variable changes are required. Both `/api/extract` and `/api/estimate` use the existing private code, DeepSeek key/model, native `recipe-extraction` SDK rule, and shared per-environment quota. The rule uses the SDK identifier, not a path condition, so it also covers metadata requests. Each request can make at most two provider calls within one 80-second deadline; notes, revisions, preferences, and measurement toggles are entirely local.
+
+The feature update intentionally permits reasonable culinary estimates for metadata only. Extracted versus estimated values are labelled, and suggestions never overwrite draft fields without individual acceptance. Ingredients, quantities, and instructions retain the no-invention rule. Save a recipe with a category/tag to make it eligible for AI classification; empty collections have no available labels. Device-local notes/history are excluded from AI requests.
+
+Before updating a device, export its single Markdown backup. Install the new shell with Update from the collection screen; database v1 upgrades in place. Version 1 collections remain importable; version 2 exports include history and cannot be read by older app versions. Prefer the stable dev alias so IndexedDB stays on the same hostname. Physical Safari installation remains a device check; automated browser tests use Chromium/Edge at mobile and desktop sizes.

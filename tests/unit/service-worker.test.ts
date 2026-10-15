@@ -35,7 +35,7 @@ describe("versioned offline shell", () => {
   });
   it("never intercepts paid API requests, POSTs, or third-party resources", () => {
     const service = worker(); const respondWith = vi.fn();
-    for (const request of [new Request("https://recipe.test/api/extract"), new Request("https://recipe.test/", { method: "POST" }), new Request("https://other.test/_next/static/app.js")]) service.handlers.get("fetch")!({ request, respondWith });
+    for (const request of [new Request("https://recipe.test/api/extract"), new Request("https://recipe.test/api/estimate", { method: "POST" }), new Request("https://recipe.test/", { method: "POST" }), new Request("https://other.test/_next/static/app.js")]) service.handlers.get("fetch")!({ request, respondWith });
     expect(respondWith).not.toHaveBeenCalled();
   });
   it("cleans only old Recipe Tracker shell caches on activation", async () => {

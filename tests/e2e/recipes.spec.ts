@@ -1,7 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import { exportCollection } from "../../src/lib/markdown";
 import { greekRecipe, ingredientsOnlyRecipe } from "../fixtures";
-import { toRecipeContent } from "../../src/lib/recipe";
+import { metadataSchema, toRecipeContent } from "../../src/lib/recipe";
 import { normalizeExtraction } from "../../src/lib/ai/provider";
 
 async function manual(page: Page, title = "Κέικ λεμονιού") {
@@ -187,4 +187,129 @@ test("browser chrome follows saved appearance and system changes", async ({ page
   await expect(themeColor).toHaveAttribute("content", "#1c1e1a");
   await page.getByRole("button", { name: "Light", exact: true }).click();
   await expect(themeColor).toHaveAttribute("content", "#f7f6f0");
+});
+
+test("cards show cooking time alone, method-specific Celsius temperatures and servings on narrow screens", async ({ page }) => {
+  await page.goto("/"); await manual(page);
+  await page.getByRole("button", { name: "Edit recipe", exact: true }).click();
+  await page.getByLabel("Preparation (minutes)").fill("10");
+  await page.getByLabel("Cooking (minutes)").fill("35");
+  await page.getByLabel("Servings", { exact: true }).fill("4");
+  await page.getByRole("button", { name: "Add temperature", exact: true }).click();
+  await page.getByLabel("Temperature 1 (°C)").fill("180");
+  await page.getByLabel("Cooking method 1").fill("fan oven");
+  await page.getByRole("button", { name: "Add temperature", exact: true }).click();
+  await page.getByLabel("Temperature 2 (°C)").fill("175");
+  await page.getByLabel("Cooking method 2").fill("frying oil");
+  await page.getByRole("button", { name: "Save recipe", exact: true }).click();
+  await page.getByRole("button", { name: "All recipes", exact: true }).click();
+  const card = page.locator(".recipe-card");
+  await expect(card).toContainText("35 min cook"); await expect(card).not.toContainText("45 min"); await expect(card).not.toContainText("10 min");
+  await expect(card).toContainText("180°C fan oven"); await expect(card).toContainText("175°C frying oil"); await expect(card).toContainText("Serves 4");
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await page.screenshot({ path: `test-results/metadata-card-${test.info().project.name}.png`, fullPage: true });
+});
+
+test("local measurement toggle persists, distinguishes supported densities, and preserves originals", async ({ page }) => {
+  let calls = 0; await page.route("**/api/*", route => { calls++; return route.abort(); });
+  await page.goto("/"); await manual(page);
+  await page.getByRole("button", { name: "Edit recipe", exact: true }).click();
+  await page.getByLabel("Quantity", { exact: true }).fill("120"); await page.getByLabel("Unit", { exact: true }).fill("g");
+  await page.getByRole("button", { name: "Add ingredient", exact: true }).click();
+  await page.getByLabel("Ingredient 2 name").fill("Chicken");
+  await page.getByLabel("Quantity", { exact: true }).nth(1).fill("200"); await page.getByLabel("Unit", { exact: true }).nth(1).fill("g");
+  await page.getByRole("button", { name: "Save recipe", exact: true }).click();
+  await page.getByRole("button", { name: "Cups / Spoons", exact: true }).click();
+  await expect(page.locator(".cooking-ingredients li").first()).toContainText("1 cup Αλεύρι");
+  await expect(page.locator(".cooking-ingredients li").nth(1)).toContainText("200 g Chicken");
+  await expect(page.getByText(/no reliable weight-to-volume rule/)).toBeVisible();
+  await page.reload(); await page.locator(".recipe-card").click();
+  await expect(page.getByRole("button", { name: "Cups / Spoons", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("button", { name: "Metric", exact: true }).click();
+  await expect(page.locator(".cooking-ingredients li").first()).toContainText("120 g Αλεύρι");
+  await page.getByRole("button", { name: "Edit recipe", exact: true }).click();
+  await expect(page.getByLabel("Quantity", { exact: true }).first()).toHaveValue("120");
+  await expect(page.getByLabel("Unit", { exact: true }).first()).toHaveValue("g");
+  expect(calls).toBe(0);
+});
+
+test("re-estimation preserves in-flight manual edits until per-field approval", async ({ page }) => {
+  await page.goto("/"); await manual(page);
+  let release!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  const suggested = metadataSchema.parse({ title: "AI title", prepTime: 15, cookTime: 20, servings: 4, category: "Γλυκά", tags: ["εύκολο"], cookingTemperatures: [{ celsius: 180, method: "oven", source: "estimated" }], metadataSources: { title: "estimated", prepTime: "estimated", cookTime: "estimated" } });
+  await page.route("**/api/estimate", async route => {
+    const input = route.request().postDataJSON();
+    expect(input.vocabulary.categories).toContainEqual({ id: "category:Γλυκά", name: "Γλυκά" });
+    expect(input.vocabulary.tags).toContainEqual({ id: "tag:εύκολο", name: "εύκολο" });
+    expect(input.recipe.ingredients[0].name).toBe("Αλεύρι");
+    await gate; await route.fulfill({ json: suggested });
+  });
+  await page.getByRole("button", { name: "Edit recipe", exact: true }).click();
+  await page.getByLabel("Cooking (minutes)").fill("35");
+  await page.getByLabel("Private app code", { exact: true }).fill("1234");
+  const requested = page.waitForRequest("**/api/estimate");
+  await page.getByRole("button", { name: "Re-estimate metadata", exact: true }).click(); await requested;
+  await page.getByLabel(/Recipe title/).fill("My handwritten title");
+  await expect(page.getByRole("button", { name: "Save recipe", exact: true })).toBeDisabled();
+  release();
+  await expect(page.getByRole("button", { name: "Accept Cooking time", exact: true })).toBeVisible();
+  await expect(page.getByLabel(/Recipe title/)).toHaveValue("My handwritten title");
+  await expect(page.getByLabel("Cooking (minutes)")).toHaveValue("35");
+  await page.getByRole("button", { name: "Reject Title", exact: true }).click();
+  await page.getByRole("button", { name: "Accept Cooking time", exact: true }).click();
+  await expect(page.getByLabel("Cooking (minutes)")).toHaveValue("20");
+  await expect(page.getByLabel(/Recipe title/)).toHaveValue("My handwritten title");
+  await page.getByRole("button", { name: "Save recipe", exact: true }).click();
+  await expect(page.locator(".page-heading h1")).toHaveText("My handwritten title");
+  await expect(page.locator(".detail-meta")).toContainText("≈ 20 min cook");
+});
+
+test("cooking notes CRUD stays separate from explicit revisions and confirmed restore preserves history", async ({ page }) => {
+  await page.goto("/"); await manual(page);
+  await page.getByRole("checkbox").check();
+  await page.getByRole("button", { name: "Add cooking note", exact: true }).click();
+  await page.getByLabel("Cooking date", { exact: true }).fill("2026-10-15");
+  await page.getByLabel("Cooking note", { exact: true }).fill("Less salt next time.");
+  await page.getByLabel("Personal rating (optional)").selectOption("4");
+  await page.getByRole("button", { name: "Save cooking note", exact: true }).click();
+  await expect(page.getByText("Less salt next time.", { exact: true })).toBeVisible();
+  await expect(page.getByRole("checkbox")).toBeChecked();
+  await expect(page.getByText("No revisions saved yet.")).toBeVisible();
+  await page.getByRole("button", { name: "Edit cooking note 2026-10-15", exact: true }).click();
+  await page.getByLabel("Cooking note", { exact: true }).fill("Used oat milk. Excellent.");
+  await page.getByLabel("Personal rating (optional)").selectOption("5");
+  await page.getByRole("button", { name: "Save cooking note", exact: true }).click();
+  await page.getByRole("button", { name: "Edit recipe", exact: true }).click();
+  await page.getByLabel("Save as a new revision", { exact: true }).check();
+  await page.getByLabel("Revision description (optional)").fill("Baseline");
+  await page.getByRole("button", { name: "Save recipe", exact: true }).click();
+  await page.getByRole("button", { name: "Edit recipe", exact: true }).click();
+  await page.getByLabel(/Recipe title/).fill("Second version");
+  await page.getByLabel("Save as a new revision", { exact: true }).check();
+  await page.getByLabel("Revision description (optional)").fill("Less sugar");
+  await page.getByRole("button", { name: "Save recipe", exact: true }).click();
+  await expect(page.locator("details.journal-entry")).toHaveCount(2);
+  await page.getByRole("checkbox").check();
+  const baseline = page.locator("details.journal-entry").filter({ hasText: "Baseline" });
+  await baseline.locator("summary").click();
+  await baseline.getByRole("button", { name: "Restore this revision", exact: true }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Cancel", exact: true }).click();
+  await expect(page.locator(".page-heading h1")).toHaveText("Second version");
+  await baseline.getByRole("button", { name: "Restore this revision", exact: true }).click();
+  await page.getByRole("button", { name: "Restore revision", exact: true }).click();
+  await expect(page.locator(".page-heading h1")).toHaveText("Κέικ λεμονιού");
+  await expect(page.locator("details.journal-entry")).toHaveCount(3);
+  await expect(page.getByRole("checkbox")).not.toBeChecked();
+  await expect(page.getByText("Used oat milk. Excellent.", { exact: true })).toBeVisible();
+  await page.reload(); await page.locator(".recipe-card").click();
+  await expect(page.locator("details.journal-entry")).toHaveCount(3);
+  await expect(page.getByLabel("Rating 5 out of 5")).toBeVisible();
+  await page.getByRole("button", { name: "Delete cooking note 2026-10-15", exact: true }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Cancel", exact: true }).click();
+  await expect(page.getByText("Used oat milk. Excellent.", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Delete cooking note 2026-10-15", exact: true }).click();
+  await page.getByRole("button", { name: "Delete cooking note", exact: true }).click();
+  await expect(page.getByText("Used oat milk. Excellent.", { exact: true })).toHaveCount(0);
+  await expect(page.locator("details.journal-entry")).toHaveCount(3);
 });

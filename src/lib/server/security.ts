@@ -2,6 +2,7 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import { checkRateLimit } from "@vercel/firewall";
 import { z } from "zod";
 import { type Screenshot } from "../ai/provider";
+import { vocabularySchema } from "../taxonomy";
 
 export const MAX_REQUEST_BYTES = 4_000_000;
 export const MAX_IMAGE_BYTES = 2_800_000;
@@ -45,7 +46,7 @@ export async function readLimitedJson(request: Request): Promise<unknown> {
 const uploadSchema = z.object({ images: z.array(z.object({
   mimeType: z.enum(["image/jpeg", "image/png", "image/webp"]),
   data: z.string().min(8).max(MAX_REQUEST_BYTES).regex(/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/),
-}).strict()).min(1).max(6) }).strict();
+}).strict()).min(1).max(6), vocabulary: vocabularySchema.optional() }).strict();
 
 export function validateImages(input: unknown): Screenshot[] {
   const parsed = uploadSchema.safeParse(input);

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AIResponseError, normalizeExtraction, parseAIResponse } from "../../src/lib/ai/provider";
 import { DeepSeekExtractor } from "../../src/lib/ai/deepseek";
-import { greekRecipe, ingredientsOnlyRecipe } from "../fixtures";
+import { greekRecipe, ingredientsOnlyRecipe, aiRecipe } from "../fixtures";
 import { toRecipeContent } from "../../src/lib/recipe";
 const content = toRecipeContent(greekRecipe);
 const completion = (content: string | null) => Response.json({ choices: [{ finish_reason: "stop", message: { content } }] });
@@ -37,14 +37,14 @@ describe("AI extraction", () => {
   });
   it.each([
     ["malformed JSON", "not JSON"],
-    ["wrong field types", JSON.stringify({ recipe: { ...content, cookTime: "35 minutes" } })],
-    ["plain-string warnings", JSON.stringify({ recipe: content, warnings: ["Check salt"] })],
+    ["wrong field types", JSON.stringify({ recipe: { ...aiRecipe(content), cookTime: "35 minutes" } })],
+    ["plain-string warnings", JSON.stringify({ recipe: aiRecipe(content), warnings: ["Check salt"] })],
     ["empty output", null],
   ])("retries %s once using the same screenshots and overall time budget", async (_label, invalid) => {
     const timeout = vi.spyOn(AbortSignal, "timeout");
     const fetcher = vi.fn<typeof fetch>()
       .mockResolvedValueOnce(completion(invalid))
-      .mockResolvedValueOnce(completion(JSON.stringify({ recipe: ingredientsOnlyRecipe })));
+      .mockResolvedValueOnce(completion(JSON.stringify({ recipe: aiRecipe(ingredientsOnlyRecipe), warnings: [] })));
     const provider = new DeepSeekExtractor("test-key", undefined, fetcher);
     const result = await provider.extract([...images]);
     expect(result.recipe).toEqual(ingredientsOnlyRecipe);
@@ -55,7 +55,7 @@ describe("AI extraction", () => {
     expect(retry.messages[0].content).toContain("Your previous response");
     expect(fetcher.mock.calls[1][1]?.signal).toBe(fetcher.mock.calls[0][1]?.signal);
   });
-  it.each(["not JSON", JSON.stringify({ recipe: content, warnings: ["Check salt"] })])("stops after two invalid outputs and reports a format error", async (invalid) => {
+  it.each(["not JSON", JSON.stringify({ recipe: aiRecipe(content), warnings: ["Check salt"] })])("stops after two invalid outputs and reports a format error", async (invalid) => {
     const fetcher = vi.fn<typeof fetch>().mockImplementation(async () => completion(invalid));
     await expect(new DeepSeekExtractor("test-key", undefined, fetcher).extract([...images])).rejects.toBeInstanceOf(AIResponseError);
     expect(fetcher).toHaveBeenCalledTimes(2);
@@ -82,7 +82,7 @@ describe("AI extraction", () => {
     expect(fetcher).toHaveBeenCalledTimes(1);
   });
   it("sends all screenshots together in one vision request", async () => {
-    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(Response.json({ choices: [{ finish_reason: "stop", message: { content: JSON.stringify({ recipe: content, warnings: [] }) } }] }));
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(Response.json({ choices: [{ finish_reason: "stop", message: { content: JSON.stringify({ recipe: aiRecipe(content), warnings: [] }) } }] }));
     const provider = new DeepSeekExtractor("test-key", "deepseek-flash", fetcher);
     await provider.extract([{ mimeType: "image/png", data: "first" }, { mimeType: "image/jpeg", data: "second" }]);
     expect(fetcher).toHaveBeenCalledTimes(1);

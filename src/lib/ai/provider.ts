@@ -1,6 +1,11 @@
-import { extractionSchema, type Extraction } from "../recipe";
+import { extractionSchema, recipeContentSchema, type Extraction, type RecipeContent, type Metadata } from "../recipe";
+import { type Vocabulary } from "../taxonomy";
+import { aiExtractionSchema, resolveChoices, withConservativeSources } from "./metadata";
 export type Screenshot = { mimeType: "image/jpeg" | "image/png" | "image/webp"; data: string };
-export interface RecipeExtractor { extract(images: Screenshot[], signal?: AbortSignal): Promise<Extraction> }
+export interface RecipeExtractor {
+  extract(images: Screenshot[], signal?: AbortSignal, vocabulary?: Vocabulary): Promise<Extraction>;
+  estimate(content: RecipeContent, vocabulary: Vocabulary, signal?: AbortSignal): Promise<Metadata>;
+}
 
 export class AIResponseError extends Error {
   constructor(readonly reason: "json" | "schema") {
@@ -58,11 +63,24 @@ export function normalizeExtraction(raw: unknown): Extraction {
   return extractionSchema.parse(result);
 }
 
-export function parseAIResponse(content: string): Extraction {
+export function parseStructuredResponse<T>(content: string, normalize: (raw: unknown) => T): T {
   const json = content.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
   let raw: unknown;
   try { raw = JSON.parse(json); }
   catch { throw new AIResponseError("json"); }
-  try { return normalizeExtraction(raw); }
+  try { return normalize(raw); }
   catch { throw new AIResponseError("schema"); }
+}
+export function parseAIResponse(content: string, vocabulary?: Vocabulary): Extraction {
+  return parseStructuredResponse(content, raw => {
+    if (!vocabulary) return normalizeExtraction(raw);
+    const parsed = aiExtractionSchema.parse(raw);
+    const { categoryId, tagIds, ...values } = parsed.recipe;
+    const { warnings, ...choices } = resolveChoices(categoryId, tagIds, vocabulary);
+    const recipe = recipeContentSchema.parse({ ...values, ...choices });
+    const metadata = withConservativeSources(recipe);
+    recipe.metadataSources = metadata.metadataSources;
+    recipe.cookingTemperatures = metadata.cookingTemperatures;
+    return normalizeExtraction({ recipe, warnings: [...parsed.warnings, ...warnings] });
+  });
 }

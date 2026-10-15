@@ -52,7 +52,7 @@ describe("extraction route protects paid provider calls", () => {
     const response = await POST(upload());
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ recipe: toRecipeContent(greekRecipe), warnings: [] });
-    expect(mocks.extract).toHaveBeenCalledWith(images, expect.any(AbortSignal));
+    expect(mocks.extract).toHaveBeenCalledWith(images, expect.any(AbortSignal), { categories: [], tags: [] });
     expect(mocks.checkRateLimit.mock.invocationCallOrder[0]).toBeLessThan(mocks.extract.mock.invocationCallOrder[0]);
   });
 });

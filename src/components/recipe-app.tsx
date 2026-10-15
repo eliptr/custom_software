@@ -1,15 +1,17 @@
 "use client";
 import { Component, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
-import { ArrowDownToLine, ArrowRight, BookOpen, Check, ChefHat, Clock3, FileUp, ImagePlus, LoaderCircle, Moon, Plus, Search, Settings2, Sun, Upload, WifiOff, X } from "lucide-react";
+import { ArrowDownToLine, ArrowRight, BookOpen, Check, ChefHat, FileUp, ImagePlus, LoaderCircle, Moon, Plus, Search, Settings2, Sun, Upload, WifiOff, X } from "lucide-react";
 import { db, deleteRecipe, importRecipes, previewImport, saveRecipe } from "@/lib/db";
-import { createRecipe, emptyRecipe, errorMessage, extractionSchema, recipeSchema, searchText, toRecipeContent, type Recipe, type RecipeContent, type Extraction } from "@/lib/recipe";
+import { createRecipe, emptyRecipe, errorMessage, extractionSchema, makeRevision, recipeSchema, searchText, toRecipeContent, type Recipe, type RecipeContent, type Extraction } from "@/lib/recipe";
+import { collectionVocabulary } from "@/lib/taxonomy";
 import { exportCollection, importCollection, MAX_IMPORT_BYTES } from "@/lib/markdown";
 import { prepareScreenshots } from "@/lib/images";
 import { Button } from "./ui/button";
 import { Modal } from "./ui/modal";
 import { RecipeEditor } from "./recipe-editor";
 import { RecipeDetails } from "./recipe-details";
+import { RecipeMetadata } from "./recipe-metadata";
 import { PwaStatus } from "./pwa-status";
 
 type View = { kind: "collection" } | { kind: "detail"; id: string } | { kind: "editor"; content: RecipeContent; original?: Recipe; warnings?: Extraction["warnings"] };
@@ -64,10 +66,11 @@ function Collection() {
   function edit(recipe: Recipe) {
     setView({ kind: "editor", content: toRecipeContent(recipe), original: recipe }); window.scrollTo(0, 0);
   }
-  async function persist(content: RecipeContent) {
+  async function persist(content: RecipeContent, revisionDescription?: string) {
     setBusy(true);
     try {
       const recipe = view.kind === "editor" && view.original ? recipeSchema.parse({ ...view.original, ...content, updatedAt: new Date().toISOString() }) : createRecipe(content);
+      if (revisionDescription !== undefined) recipe.revisions = [...recipe.revisions, makeRevision(content, revisionDescription.trim() || null)];
       await saveRecipe(recipe);
       if (navigator.storage?.persist) void navigator.storage.persist().catch(() => {});
       setView({ kind: "detail", id: recipe.id }); notify("Recipe saved to your collection."); window.scrollTo(0, 0);
@@ -83,7 +86,8 @@ function Collection() {
       const images = await prepareScreenshots(files);
       if (controller.signal.aborted) return;
       setExtractionStage("Reading your recipe…");
-      const response = await fetch("/api/extract", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ images }), signal: AbortSignal.any([controller.signal, AbortSignal.timeout(90000)]) });
+      const vocabulary = collectionVocabulary(await db.recipes.toArray());
+      const response = await fetch("/api/extract", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ images, vocabulary }), signal: AbortSignal.any([controller.signal, AbortSignal.timeout(90000)]) });
       const data = await response.json().catch(() => ({ error: "Extraction could not finish. Try fewer screenshots." }));
       if (!response.ok) throw new Error(typeof data.error === "string" ? data.error : "Extraction failed. Please retry.");
       const result = extractionSchema.parse(data);
@@ -131,7 +135,7 @@ function Collection() {
   return <div className="app-shell"><a className="skip-link" href="#main-content">Skip to recipes</a>
     <header className="app-header"><div className="brand"><span className="brand-icon"><ChefHat size={24} strokeWidth={1.5} /></span><span>recipe<span className="brand-light">tracker</span><small>YOUR PERSONAL COOKBOOK</small></span></div><div className="header-actions"><span className="local-label"><span className="status-dot" /> Stored on your device</span><button className="icon-button" aria-label="Settings and backups" disabled={view.kind === "editor"} onClick={() => setDialog("settings")}><Settings2 size={21} /></button></div></header>
     {!online && <div className="offline-banner" role="status"><WifiOff size={17} /><span>You’re offline. Saved recipes and manual editing are ready to use.</span></div>}
-    <PwaStatus canUpdate={view.kind !== "editor" && !busy && dialog === null} />
+    <PwaStatus canUpdate={view.kind === "collection" && !busy && dialog === null} />
     {notification && <div className={`toast ${notification.error ? "toast-error" : ""}`} role={notification.error ? "alert" : "status"}><span>{notification.text}</span><button className="icon-button" aria-label="Dismiss notification" onClick={() => setNotification(null)}><X size={18} /></button></div>}
     <input ref={importRef} className="sr-only" type="file" accept=".md,text/markdown" aria-label="Import Markdown collection" onChange={(event) => void readImport(event.target.files?.[0])} />
     <main id="main-content" className="main-content" tabIndex={-1}>
@@ -139,11 +143,11 @@ function Collection() {
         <section className="capture-banner"><div className="capture-icon"><ImagePlus size={25} strokeWidth={1.5} /></div><div><h2>From screenshot to supper.</h2><p>Save a recipe from anywhere. We’ll help with the details.</p></div><button aria-label="Add recipe from screenshots" className="icon-button" onClick={() => setDialog("add")}><ArrowRight size={23} /></button></section>
         <section className="collection-toolbar" aria-label="Find recipes"><div className="search-field"><Search size={19} /><input aria-label="Search recipes" type="search" placeholder="Find a recipe or ingredient…" value={query} onChange={(event) => setQuery(event.target.value)} /></div><div className="filters"><select aria-label="Filter by category" value={category} onChange={(event) => setCategory(event.target.value)}><option value="">All categories</option>{categories.map((value) => <option key={value}>{value}</option>)}</select><select aria-label="Filter by tag" value={tagFilter} onChange={(event) => setTagFilter(event.target.value)}><option value="">All tags</option>{tags.map((value) => <option key={value}>{value}</option>)}</select><select aria-label="Sort recipes" value={sort} onChange={(event) => setSort(event.target.value)}><option value="updated">Recently updated</option><option value="created">Newest first</option><option value="name">Name A–Z</option></select></div></section>
         <div className="collection-count"><p>{recipes === undefined ? "Opening your cookbook…" : `${filtered.length} ${filtered.length === 1 ? "recipe" : "recipes"}`}</p><span className="muted small">Made to be made again</span></div>
-        {recipes === undefined ? <div className="loading-state" role="status"><LoaderCircle className="spin" /> Opening your collection…</div> : filtered.length > 0 ? <div className="recipe-grid">{filtered.map((recipe, index) => <button className="recipe-card" key={recipe.id} onClick={() => { setView({ kind: "detail", id: recipe.id }); window.scrollTo(0, 0); }}><div className="card-top"><span className="eyebrow">{recipe.category || "YOUR FAVORITES"}</span><span className="card-index">{String(index + 1).padStart(2, "0")}</span></div><h2>{recipe.title}</h2>{recipe.description && <p className="card-description">{recipe.description}</p>}<div className="card-footer"><span>{recipe.prepTime !== null || recipe.cookTime !== null ? <><Clock3 size={15} />{(recipe.prepTime ?? 0) + (recipe.cookTime ?? 0)} min</> : <>{recipe.ingredients.length} ingredients</>}</span><ArrowRight size={19} /></div></button>)}</div> : <section className="empty-state"><span className="empty-icon"><BookOpen size={34} strokeWidth={1.3} /></span><p className="eyebrow">{recipes.length ? "KEEP LOOKING" : "A FRESH START"}</p><h2>{recipes.length ? "No recipes found" : "Every collection starts\nwith one good recipe."}</h2><p className="muted">{recipes.length ? "Try another search, category, or tag." : "Add a screenshot or write down a favorite.\nYour next great meal belongs here."}</p>{recipes.length ? <Button variant="secondary" onClick={() => { setQuery(""); setCategory(""); setTagFilter(""); }}>Clear filters</Button> : <Button onClick={() => setDialog("add")}><Plus size={18} /> Add your first recipe</Button>}</section>}
+        {recipes === undefined ? <div className="loading-state" role="status"><LoaderCircle className="spin" /> Opening your collection…</div> : filtered.length > 0 ? <div className="recipe-grid">{filtered.map((recipe, index) => <button className="recipe-card" key={recipe.id} onClick={() => { setView({ kind: "detail", id: recipe.id }); window.scrollTo(0, 0); }}><div className="card-top"><span className="eyebrow">{recipe.category || "YOUR FAVORITES"}</span><span className="card-index">{String(index + 1).padStart(2, "0")}</span></div><h2>{recipe.title}</h2>{recipe.description && <p className="card-description">{recipe.description}</p>}<div className="card-footer"><RecipeMetadata recipe={recipe} /><ArrowRight size={19} /></div></button>)}</div> : <section className="empty-state"><span className="empty-icon"><BookOpen size={34} strokeWidth={1.3} /></span><p className="eyebrow">{recipes.length ? "KEEP LOOKING" : "A FRESH START"}</p><h2>{recipes.length ? "No recipes found" : "Every collection starts\nwith one good recipe."}</h2><p className="muted">{recipes.length ? "Try another search, category, or tag." : "Add a screenshot or write down a favorite.\nYour next great meal belongs here."}</p>{recipes.length ? <Button variant="secondary" onClick={() => { setQuery(""); setCategory(""); setTagFilter(""); }}>Clear filters</Button> : <Button onClick={() => setDialog("add")}><Plus size={18} /> Add your first recipe</Button>}</section>}
         <footer className="collection-footer"><span>YOUR RECIPES. YOUR DEVICE. YOUR KITCHEN.</span><button onClick={() => setDialog("settings")}>Back up your collection <ArrowDownToLine size={14} /></button></footer>
       </>}
       {view.kind === "detail" && (selected ? <RecipeDetails key={selected.id} recipe={selected} onBack={collection} onEdit={() => edit(selected)} onDelete={() => setDialog("delete")} /> : <section className="empty-state"><h2>Recipe unavailable</h2><Button onClick={collection}>Back to collection</Button></section>)}
-      {view.kind === "editor" && <RecipeEditor initial={view.content} warnings={view.warnings} editing={Boolean(view.original)} busy={busy} onSave={persist} onCancel={(dirty) => dirty ? setDialog("discard") : collection()} />}
+      {view.kind === "editor" && <RecipeEditor token={token} onTokenChange={setToken} online={online} initial={view.content} warnings={view.warnings} editing={Boolean(view.original)} busy={busy} onSave={persist} onCancel={(dirty) => dirty ? setDialog("discard") : collection()} />}
     </main>
     {view.kind !== "editor" && <nav className="mobile-nav" aria-label="Main navigation"><button onClick={collection} aria-current={view.kind === "collection" ? "page" : undefined}><BookOpen size={21} /><span>Collection</span></button><button className="mobile-add" onClick={() => setDialog("add")}><Plus size={23} /><span>Add recipe</span></button><button onClick={() => setDialog("settings")}><Settings2 size={21} /><span>Settings</span></button></nav>}
     <Modal open={dialog === "add"} title="Add something delicious" description="Bring all screenshots of one recipe, or start with a blank page." onClose={closeDialog}><div className="upload-box"><ImagePlus size={30} strokeWidth={1.4} /><h3>Start with screenshots</h3><p className="muted small">1–6 JPEG, PNG, or WebP images of the same recipe.</p><label className="button button-secondary upload-label"><Upload size={18} /> Choose screenshots<input type="file" multiple accept="image/jpeg,image/png,image/webp" disabled={busy || !online} onChange={(event) => { setFiles(Array.from(event.target.files || [])); setUploadError(""); event.target.value = ""; }} /></label></div>
