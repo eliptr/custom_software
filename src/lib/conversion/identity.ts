@@ -13,13 +13,14 @@ export function contextFingerprint(context: IdentityContext): string {
   return (a >>> 0).toString(16).padStart(8, "0") + (b >>> 0).toString(16).padStart(8, "0");
 }
 const harmless = (name: string) => normalizeText(name).replace(/(?:,?\s+)(?:divided|for serving|σε δοσεισ)\s*$/u, "").trim();
-const packed = (text: string) => /\b(?:firmly\s+)?packed\b|πατημεν|συμπιεσμεν/u.test(text) && !/loosely packed|unpacked|not packed|ασυμπιεστ/u.test(text);
+const nonstandardPacking = /\b(?:loose|loosely|lightly)(?:[\s-]+packed)?\b|\bnot[\s-]+(?:firmly[\s-]+)?packed\b|\bunpacked\b|ασυμπιεστ|απατητ/u;
+const packed = (text: string) => /\b(?:firmly\s+)?packed\b|πατημεν|συμπιεσμεν/u.test(text) && !nonstandardPacking.test(text);
 function bareName(name: string): string {
   return harmless(name).replace(/^(?:firmly )?packed\s+|,?\s+(?:firmly )?packed$/g, "").replace(/\s+πατημενη$/u, "").trim();
 }
 export function uncertainPreparation(ingredient: Ingredient): boolean {
   const text = normalizeText(ingredient.name + " " + (ingredient.notes || ""));
-  return /\b(?:heaped|heaping|sifted|melted|whipped|chopped|ground|cooked|toasted|compressed)\b|loosely packed|not packed|unpacked|κοσκινισ|γεματ|φουσκωτ|λιωμεν/u.test(text.replace(/\bunsifted\b|un-sifted/g, ""));
+  return nonstandardPacking.test(text) || /\b(?:heaped|heaping|sifted|melted|whipped|chopped|ground|cooked|toasted|compressed)\b|κοσκινισ|γεματ|φουσκωτ|λιωμεν/u.test(text.replace(/\bunsifted\b|un-sifted/g, ""));
 }
 export function preparationCompatible(ingredient: Ingredient, profile: IngredientProfile, confirmed = false): boolean {
   const text = normalizeText(ingredient.name + " " + (ingredient.notes || ""));

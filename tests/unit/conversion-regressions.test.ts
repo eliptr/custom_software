@@ -33,6 +33,12 @@ describe("reported measurement regressions", () => {
     expect(convertIngredient({ ...item("brown sugar", "213"), ingredientType: "brown-sugar" }, "cups").converted).toBe(false);
     expect(convertIngredient(item("brown sugar", "213", "g", "packed"), "cups")).toMatchObject({ quantity: "1", unit: "cup" });
   });
+  it.each(["loosely-packed", "lightly packed", "not firmly packed", "loose"])("rejects nonstandard packing: %s", notes => {
+    const ingredient = item("brown sugar", "213", "g", notes);
+    expect(convertIngredient(ingredient, "cups").converted).toBe(false);
+    ingredient.identity = makeIdentity(ingredient, "packed-brown-sugar", "user", true);
+    expect(convertIngredient(ingredient, "cups").converted).toBe(false);
+  });
   it("does not let a contradictory legacy identity turn coconut flour into all-purpose flour", () => {
     const result = convertIngredient({ ...item("coconut flour"), ingredientType: "flour" }, "cups");
     expect(result.quantity).toBe("15/16"); expect(result.reason).toContain("Coconut flour");
