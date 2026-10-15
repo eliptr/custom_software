@@ -10,10 +10,10 @@ import { POST } from "../../src/app/api/extract/route";
 describe("extraction route protects paid provider calls", () => {
   const code = "1234";
   const images = [{ mimeType: "image/png", data: Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]).toString("base64") }];
-  function upload(authorization = `Bearer ${code}`) {
+  function upload(authorization = `Bearer ${code}`, modern = true) {
     return new Request("https://recipe.test/api/extract", {
       method: "POST", headers: { Authorization: authorization, "Content-Type": "application/json" },
-      body: JSON.stringify({ images }),
+      body: JSON.stringify({ images, ...(modern ? { conversionVersion: 3 } : {}) }),
     });
   }
   beforeEach(() => {
@@ -54,5 +54,12 @@ describe("extraction route protects paid provider calls", () => {
     expect(await response.json()).toEqual({ recipe: toRecipeContent(greekRecipe), warnings: [] });
     expect(mocks.extract).toHaveBeenCalledWith(images, expect.any(AbortSignal), { categories: [], tags: [] });
     expect(mocks.checkRateLimit.mock.invocationCallOrder[0]).toBeLessThan(mocks.extract.mock.invocationCallOrder[0]);
+  });
+  it("retains the ingredient response shape for an older installed client", async () => {
+    const response = await POST(upload(`Bearer ${code}`, false));
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.recipe.ingredients[0]).toEqual({ name: greekRecipe.ingredients[0].name, quantity: "1 ½", unit: "φλιτζάνι", notes: "κοσκινισμένο", ingredientType: null });
+    expect(mocks.extract).toHaveBeenCalledTimes(1);
   });
 });

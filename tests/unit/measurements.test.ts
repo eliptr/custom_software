@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { ingredientSchema } from "../../src/lib/recipe";
 import { convertIngredient, formatFraction, parseQuantity, US_CUP_ML, US_TABLESPOON_ML, US_TEASPOON_ML } from "../../src/lib/measurements";
 import { MEASUREMENT_PREFERENCE_KEY, readMeasurementPreference, writeMeasurementPreference } from "../../src/lib/preferences";
+import { makeIdentity } from "../../src/lib/conversion/identity";
 const ingredient = (name: string, quantity: string | null, unit: string | null, notes: string | null = null) => ingredientSchema.parse({ name, quantity, unit, notes });
 describe("local measurement conversions", () => {
   it.each([["1 ½", 1.5], ["1½", 1.5], ["½", 0.5], ["1 1/3", 4 / 3], ["1-1/2", 1.5], ["1,5", 1.5], ["2/3", 2 / 3], ["⅛", 0.125]])("parses %s", (input, expected) => expect(parseQuantity(String(input))).toBeCloseTo(Number(expected)));
@@ -12,7 +13,7 @@ describe("local measurement conversions", () => {
   it("uses US volume relationships and converts liquids without assuming a mass density", () => {
     expect(US_TABLESPOON_ML * 16).toBeCloseTo(US_CUP_ML, 10);
     expect(US_TEASPOON_ML * 48).toBeCloseTo(US_CUP_ML, 10);
-    expect(convertIngredient(ingredient("orange juice", "1", "cup"), "metric")).toMatchObject({ quantity: "237", unit: "ml" });
+    expect(convertIngredient(ingredient("orange juice", "1", "cup"), "metric")).toMatchObject({ quantity: "236.6", unit: "ml" });
     expect(convertIngredient(ingredient("water", "1", "L"), "metric")).toMatchObject({ quantity: "1", unit: "L" });
     expect(convertIngredient(ingredient("water", String(US_CUP_ML / 2), "ml"), "cups")).toMatchObject({ quantity: "1/2", unit: "cup" });
     expect(convertIngredient(ingredient("water", String(US_TABLESPOON_ML * 1.5), "ml"), "cups")).toMatchObject({ quantity: "1 1/2", unit: "tbsp" });
@@ -22,16 +23,17 @@ describe("local measurement conversions", () => {
     expect(convertIngredient(ingredient("All-purpose flour", "1", "cup"), "metric")).toMatchObject({ quantity: "120", unit: "g", approximate: true });
     expect(convertIngredient(ingredient("sugar", "1", "cup"), "metric")).toMatchObject({ quantity: "198", unit: "g" });
     expect(convertIngredient(ingredient("ΑΛΕΎΡΙ", "120", "γρ."), "cups")).toMatchObject({ quantity: "1", unit: "cup" });
-    expect(convertIngredient(ingredient("coconut flour", "120", "g"), "cups").converted).toBe(false);
+    expect(convertIngredient(ingredient("coconut flour", "128", "g"), "cups")).toMatchObject({ quantity: "1", unit: "cup" });
     expect(convertIngredient(ingredient("brown sugar", "213", "g"), "cups").converted).toBe(false);
   });
   it("uses direct mass conversion and a selected canonical type for manual recipes", () => {
     expect(convertIngredient(ingredient("chicken", "1.5", "kg"), "metric")).toMatchObject({ quantity: "1.5", unit: "kg" });
     expect(convertIngredient(ingredient("chicken", "1500", "g"), "metric")).toMatchObject({ quantity: "1.5", unit: "kg" });
-    expect(convertIngredient({ ...ingredient("my flour brand", "240", "g"), ingredientType: "flour" }, "cups")).toMatchObject({ quantity: "2", unit: "cup" });
+    const manual = ingredient("my flour brand", "240", "g");
+    expect(convertIngredient({ ...manual, identity: makeIdentity(manual, "all-purpose-flour", "user", true) }, "cups")).toMatchObject({ quantity: "2", unit: "cup" });
   });
   it("keeps unknown density, packing, and unsupported measures unchanged", () => {
-    for (const item of [ingredient("chicken", "200", "g"), ingredient("flour", "1", "pinch"), ingredient("flour", "1", "cup", "heaped")]) {
+    for (const item of [ingredient("chicken", "200", "g"), ingredient("flour", "1", "pinch"), ingredient("flour", "120", "g", "heaped")]) {
       const output = convertIngredient(item, item.unit === "g" ? "cups" : "metric");
       expect(output).toMatchObject({ quantity: item.quantity, unit: item.unit, converted: false, reason: expect.any(String) });
     }

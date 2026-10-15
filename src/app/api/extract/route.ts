@@ -15,7 +15,9 @@ export async function POST(request: Request) {
     const vocabulary = vocabularySchema.parse((input as { vocabulary?: unknown }).vocabulary || EMPTY_VOCABULARY);
     await consumeRateLimit(token, request);
     const provider = new DeepSeekExtractor(process.env.DEEPSEEK_API_KEY, process.env.DEEPSEEK_MODEL || "deepseek-flash");
-    return Response.json(await provider.extract(images, request.signal, vocabulary), { headers });
+    const result = await provider.extract(images, request.signal, vocabulary);
+    const modern = (input as { conversionVersion?: unknown }).conversionVersion === 3;
+    return Response.json(modern ? result : { ...result, recipe: { ...result.recipe, ingredients: result.recipe.ingredients.map(({ name, quantity, unit, notes, ingredientType }) => ({ name, quantity, unit, notes, ingredientType })) } }, { headers });
   } catch (error) {
     if (error instanceof RequestError) return Response.json({ error: error.message }, { status: error.status, headers: { ...headers, ...(error.retryAfter ? { "Retry-After": String(error.retryAfter) } : {}) } });
     const timedOut = error instanceof Error && ["TimeoutError", "AbortError"].includes(error.name);

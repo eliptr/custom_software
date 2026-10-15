@@ -87,7 +87,7 @@ function Collection() {
       if (controller.signal.aborted) return;
       setExtractionStage("Reading your recipe…");
       const vocabulary = collectionVocabulary(await db.recipes.toArray());
-      const response = await fetch("/api/extract", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ images, vocabulary }), signal: AbortSignal.any([controller.signal, AbortSignal.timeout(90000)]) });
+      const response = await fetch("/api/extract", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ images, vocabulary, conversionVersion: 3 }), signal: AbortSignal.any([controller.signal, AbortSignal.timeout(90000)]) });
       const data = await response.json().catch(() => ({ error: "Extraction could not finish. Try fewer screenshots." }));
       if (!response.ok) throw new Error(typeof data.error === "string" ? data.error : "Extraction failed. Please retry.");
       const result = extractionSchema.parse(data);

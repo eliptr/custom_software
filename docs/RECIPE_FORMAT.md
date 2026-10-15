@@ -1,4 +1,39 @@
-# Single-file Markdown format, version 2
+# Single-file Markdown format, version 3
+
+Exports start with `Format: recipe-tracker/3`. Version 3 retains the version 2 grammar below, with one additional required section **between Ingredients and Instructions**:
+
+````markdown
+### Ingredient conversion context
+
+```json
+[
+  {
+    "conversionMode": "auto",
+    "identity": null,
+    "measurementContext": {
+      "convention": "us",
+      "conventionSource": "assumed",
+      "numberFormat": "auto"
+    }
+  }
+]
+```
+````
+
+The JSON array must have exactly one entry per ingredient in the same order. It never replaces the five readable original ingredient fields. Each entry contains `conversionMode` (`auto` or `original`), `measurementContext`, and nullable `identity`.
+
+- `convention`: `us`, `metric-250`, `metric-240`, `australian`, or `unknown`. Explicit `US cup`/spoon unit text takes precedence over this default.
+- `conventionSource`: `assumed`, `user`, `legacy`, or `extracted`. Older recipes use US customary with `legacy` provenance; this is an assumption, not evidence about the original recipe.
+- `numberFormat`: `auto`, `en-US`, or `el-GR`. Auto rejects ambiguous three-digit decimal/grouping suffixes such as `1,000`.
+- `identity`: null or `{profileId, source, catalogVersion, context, assumptionsConfirmed}`. `source` is `local`, `ai`, `user`, or `legacy`. Context stores the exact original `name`, nullable `notes` and `unit`, `convention`, and `numberFormat`; quantity is deliberately excluded so changing it retains a valid identity. `assumptionsConfirmed` is a boolean recording a user's explicit preparation confirmation. Profile IDs/versions not in the current catalog are preserved but not trusted for conversion.
+
+Revision snapshot ingredients carry these same fields in their existing JSON objects. Importing old revisions adds conversion metadata only; their original names, quantity/unit strings, notes, dates, and IDs remain unchanged. No converted display quantity is persisted. Device display preferences and temporary AI request identifiers are not exported.
+
+Versions 1 and 2 remain supported. Version 1 adds the previous empty notes/history/metadata defaults. Both older formats add US/legacy/auto measurement context, auto conversion mode, and, if an old ingredientType exists, an unverified `legacy/2` identity hint. Legacy classifications never establish density by themselves. Migration is deterministic, including historical snapshots, so repeated old imports do not create conflicting revisions or duplicate journal entries. Export always writes version 3; older app versions cannot read it. Use the latest app when sharing new backups.
+
+All validation, canonical ordering, single-file limits, and merge/replace behavior below also apply to version 3. Malformed/missing conversion sections, invalid context fields, or mismatched ingredient/context counts reject the complete import before any write.
+
+## Version 2 reference grammar
 
 All recipes, cooking notes, and revision snapshots export to **one UTF-8 `recipe-collection.md`**. No ZIP, external attachments, or separate recipe files are created. Version 1 collections remain importable; their original specification is in [RECIPE_FORMAT_V1.md](RECIPE_FORMAT_V1.md).
 

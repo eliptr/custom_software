@@ -1,10 +1,12 @@
-import { extractionSchema, recipeContentSchema, type Extraction, type RecipeContent, type Metadata } from "../recipe";
+import { extractionSchema, ingredientSchema, recipeContentSchema, type Extraction, type RecipeContent } from "../recipe";
+import { type EstimateResponse, type IdentificationRequest } from "../conversion/suggestions";
+import { localProfile, supportedAIProfile, makeIdentity } from "../conversion/identity";
 import { type Vocabulary } from "../taxonomy";
 import { aiExtractionSchema, resolveChoices, withConservativeSources } from "./metadata";
 export type Screenshot = { mimeType: "image/jpeg" | "image/png" | "image/webp"; data: string };
 export interface RecipeExtractor {
   extract(images: Screenshot[], signal?: AbortSignal, vocabulary?: Vocabulary): Promise<Extraction>;
-  estimate(content: RecipeContent, vocabulary: Vocabulary, signal?: AbortSignal): Promise<Metadata>;
+  estimate(content: RecipeContent, vocabulary: Vocabulary, signal?: AbortSignal, identification?: IdentificationRequest): Promise<EstimateResponse>;
 }
 
 export class AIResponseError extends Error {
@@ -77,7 +79,13 @@ export function parseAIResponse(content: string, vocabulary?: Vocabulary): Extra
     const parsed = aiExtractionSchema.parse(raw);
     const { categoryId, tagIds, ...values } = parsed.recipe;
     const { warnings, ...choices } = resolveChoices(categoryId, tagIds, vocabulary);
-    const recipe = recipeContentSchema.parse({ ...values, ...choices });
+    const ingredients = values.ingredients.map(({ profileId, ...original }) => {
+      const ingredient = ingredientSchema.parse(original);
+      const local = localProfile(ingredient);
+      const profile = local ?? (profileId ? supportedAIProfile(ingredient, profileId) : null);
+      return profile ? { ...ingredient, identity: makeIdentity(ingredient, profile.id, local ? "local" : "ai") } : ingredient;
+    });
+    const recipe = recipeContentSchema.parse({ ...values, ...choices, ingredients });
     const metadata = withConservativeSources(recipe);
     recipe.metadataSources = metadata.metadataSources;
     recipe.cookingTemperatures = metadata.cookingTemperatures;

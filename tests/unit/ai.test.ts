@@ -3,6 +3,7 @@ import { AIResponseError, normalizeExtraction, parseAIResponse } from "../../src
 import { DeepSeekExtractor } from "../../src/lib/ai/deepseek";
 import { greekRecipe, ingredientsOnlyRecipe, aiRecipe } from "../fixtures";
 import { toRecipeContent } from "../../src/lib/recipe";
+import { persistLocalIdentity } from "../../src/lib/conversion/identity";
 const content = toRecipeContent(greekRecipe);
 const completion = (content: string | null) => Response.json({ choices: [{ finish_reason: "stop", message: { content } }] });
 const images = [{ mimeType: "image/png", data: "first" }, { mimeType: "image/jpeg", data: "second" }] as const;
@@ -47,7 +48,7 @@ describe("AI extraction", () => {
       .mockResolvedValueOnce(completion(JSON.stringify({ recipe: aiRecipe(ingredientsOnlyRecipe), warnings: [] })));
     const provider = new DeepSeekExtractor("test-key", undefined, fetcher);
     const result = await provider.extract([...images]);
-    expect(result.recipe).toEqual(ingredientsOnlyRecipe);
+    expect(result.recipe).toEqual({ ...ingredientsOnlyRecipe, ingredients: ingredientsOnlyRecipe.ingredients.map(persistLocalIdentity) });
     expect(fetcher).toHaveBeenCalledTimes(2);
     expect(timeout).toHaveBeenCalledExactlyOnceWith(80000);
     const [first, retry] = fetcher.mock.calls.map((call) => JSON.parse(String(call[1]?.body)));

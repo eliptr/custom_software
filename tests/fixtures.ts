@@ -29,7 +29,7 @@ export const greekRecipe: Recipe = recipeSchema.parse({
 export function aiRecipe(content: RecipeContent) {
   const recipe: Record<string, unknown> = { ...content };
   delete recipe.category; delete recipe.tags;
-  return { ...recipe, categoryId: null, tagIds: [] };
+  return { ...recipe, ingredients: content.ingredients.map(item => ({ name: item.name, quantity: item.quantity, unit: item.unit, notes: item.notes, profileId: null as string | null })), categoryId: null, tagIds: [] };
 }
 
 export const journalRecipe: Recipe = recipeSchema.parse({

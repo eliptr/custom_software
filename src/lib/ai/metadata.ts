@@ -1,12 +1,15 @@
 import { z } from "zod";
-import { METADATA_FIELDS, extractionSchema, metadataSchema, temperatureSchema, type Metadata } from "../recipe";
+import { METADATA_FIELDS, extractionSchema, ingredientSchema, metadataSchema, temperatureSchema, type Metadata } from "../recipe";
+import { aiIngredientSuggestionSchema } from "../conversion/suggestions";
 import { type Vocabulary } from "../taxonomy";
 
 const selection = { categoryId: z.string().max(210).nullable(), tagIds: z.array(z.string().max(210)).max(50) };
 const aiSource = z.enum(["extracted", "estimated", "unknown"]);
 const aiFields = { ...selection, metadataSources: z.partialRecord(z.enum(METADATA_FIELDS), aiSource).default({}), cookingTemperatures: z.array(temperatureSchema.extend({ source: aiSource.default("unknown") })).max(10).default([]) };
 export const aiMetadataSchema = metadataSchema.omit({ category: true, tags: true }).extend(aiFields).strict();
-export const aiExtractionSchema = extractionSchema.extend({ recipe: extractionSchema.shape.recipe.omit({ category: true, tags: true }).extend(aiFields).strict() });
+export const aiEstimateSchema = z.object({ metadata: aiMetadataSchema, ingredientSuggestions: z.array(aiIngredientSuggestionSchema).max(200).default([]) }).strict();
+export const aiExtractionIngredientSchema = ingredientSchema.omit({ ingredientType: true, measurementContext: true, identity: true, conversionMode: true }).extend({ profileId: z.string().max(100).nullable().default(null) });
+export const aiExtractionSchema = extractionSchema.extend({ recipe: extractionSchema.shape.recipe.omit({ category: true, tags: true }).extend({ ...aiFields, ingredients: z.array(aiExtractionIngredientSchema).max(200) }).strict() });
 export function resolveChoices(categoryId: string | null, tagIds: string[], vocabulary: Vocabulary) {
   const category = vocabulary.categories.find(term => term.id === categoryId)?.name ?? null;
   const tags = [...new Set(tagIds.flatMap(id => { const term = vocabulary.tags.find(term => term.id === id); return term ? [term.name] : []; }))];

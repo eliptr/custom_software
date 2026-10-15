@@ -46,7 +46,7 @@ export async function readLimitedJson(request: Request): Promise<unknown> {
 const uploadSchema = z.object({ images: z.array(z.object({
   mimeType: z.enum(["image/jpeg", "image/png", "image/webp"]),
   data: z.string().min(8).max(MAX_REQUEST_BYTES).regex(/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/),
-}).strict()).min(1).max(6), vocabulary: vocabularySchema.optional() }).strict();
+}).strict()).min(1).max(6), vocabulary: vocabularySchema.optional(), conversionVersion: z.literal(3).optional() }).strict();
 
 export function validateImages(input: unknown): Screenshot[] {
   const parsed = uploadSchema.safeParse(input);

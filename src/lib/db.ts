@@ -2,6 +2,7 @@ import Dexie, { type Table } from "dexie";
 import { cookingNoteSchema, makeRevision, recipeSchema, toRecipeContent, type CookingNote, type Recipe } from "./recipe";
 import { exportCollection } from "./markdown";
 import { canonicalJSON } from "./serialization";
+import { migrateRecipe } from "./conversion/migrate";
 
 export class RecipeDatabase extends Dexie {
   recipes!: Table<Recipe, string>;
@@ -9,7 +10,10 @@ export class RecipeDatabase extends Dexie {
     super(name);
     this.version(1).stores({ recipes: "id, title, createdAt, updatedAt, category, *tags" });
     this.version(2).stores({ recipes: "id, title, createdAt, updatedAt, category, *tags" }).upgrade(async transaction => {
-      await transaction.table("recipes").toCollection().modify(recipe => Object.assign(recipe, recipeSchema.parse(recipe)));
+      await transaction.table("recipes").toCollection().modify(recipe => Object.assign(recipe, migrateRecipe(recipe)));
+    });
+    this.version(3).stores({ recipes: "id, title, createdAt, updatedAt, category, *tags" }).upgrade(async transaction => {
+      await transaction.table("recipes").toCollection().modify(recipe => Object.assign(recipe, migrateRecipe(recipe)));
     });
   }
 }

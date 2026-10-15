@@ -48,9 +48,9 @@ describe("metadata enrichment", () => {
     expect(result.metadataSources.title).toBe("estimated"); expect(result.cookingTemperatures[0].source).toBe("estimated");
   });
   it("requests metadata from current text with dynamic vocabulary and no screenshots", async () => {
-    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(Response.json({ choices: [{ finish_reason: "stop", message: { content: JSON.stringify(raw) } }] }));
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(Response.json({ choices: [{ finish_reason: "stop", message: { content: JSON.stringify({ metadata: raw, ingredientSuggestions: [] }) } }] }));
     const result = await new DeepSeekExtractor("test", undefined, fetcher).estimate(content, vocabulary);
-    expect(metadataSchema.safeParse(result).success).toBe(true);
+    expect(metadataSchema.safeParse(result.metadata).success).toBe(true);
     const body = JSON.parse(String(fetcher.mock.calls[0][1]?.body));
     expect(body.messages[0].content).toContain(vocabulary.categories[0].id);
     expect(JSON.parse(body.messages[1].content).ingredients).toEqual(content.ingredients);

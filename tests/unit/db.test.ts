@@ -6,6 +6,7 @@ import { RecipeDatabase, importRecipes, saveRecipe, deleteRecipe, previewImport,
 import { makeRevision, toRecipeContent } from "../../src/lib/recipe";
 import { exportCollection, importCollection } from "../../src/lib/markdown";
 import { greekRecipe, journalRecipe } from "../fixtures";
+import { migrateRecipe } from "../../src/lib/conversion/migrate";
 let database: RecipeDatabase;
 beforeEach(() => { database = new RecipeDatabase(`test-${crypto.randomUUID()}`); });
 afterEach(async () => { await database.delete(); });
@@ -51,10 +52,10 @@ describe("persistent collection", () => {
     old.ingredients = greekRecipe.ingredients.map(ingredient => ({ name: ingredient.name, quantity: ingredient.quantity, unit: ingredient.unit, notes: ingredient.notes }));
     await legacy.table("recipes").put(old); legacy.close();
     await database.open();
-    expect(database.verno).toBe(2);
-    expect(await database.recipes.get(greekRecipe.id)).toEqual(greekRecipe);
+    expect(database.verno).toBe(3);
+    expect(await database.recipes.get(greekRecipe.id)).toEqual(migrateRecipe(old));
     database.close(); await database.open();
-    expect(await database.recipes.get(greekRecipe.id)).toEqual(greekRecipe);
+    expect(await database.recipes.get(greekRecipe.id)).toEqual(migrateRecipe(old));
   });
   it("creates, edits, reopens, and deletes notes without making revisions", async () => {
     await saveRecipe(greekRecipe, database);
