@@ -179,7 +179,7 @@ test("list layouts stay compact with long Greek names and multiple amounts in bo
   await page.getByRole("button", { name: "All recipes", exact: true }).click();
   await page.locator(".recipe-card").click(); await page.locator(".ingredient-shopping").first().click();
   await expect(page.getByRole("button", { name: "Added Αλεύρι to Supermarket", exact: true })).toBeDisabled();
-  await expect(page.locator(".toast")).toBeVisible();
+  await expect(page.locator(".toast")).toHaveCount(0);
   await dismissToast(page);
   await page.screenshot({ path: `test-results/shopping-lists/${test.info().project.name}-ingredients.png`, fullPage: true });
   await openLists(page); await screenshot("light");

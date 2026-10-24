@@ -71,7 +71,7 @@ function Collection() {
   function lists() { setView({ kind: "lists" }); window.scrollTo(0, 0); }
   async function addToSupermarket(index: number, measurement: DisplayMeasurement) {
     if (!selected) return;
-    try { await addIngredientToSupermarket(selected, index, measurement); notify("Added to Supermarket."); }
+    try { await addIngredientToSupermarket(selected, index, measurement); }
     catch (cause) { notify(errorMessage(cause), true); }
   }
   function closeDialog() { abortRef.current?.abort(); setDialog(null); setFiles([]); setUploadError(""); }
@@ -162,7 +162,7 @@ function Collection() {
       {view.kind === "lists" && <ShoppingLists onBack={collection} onAddRecipe={() => setDialog("add")} notify={notify} />}
       {view.kind === "editor" && <RecipeEditor token={token} onTokenChange={setToken} online={online} initial={view.content} warnings={view.warnings} editing={Boolean(view.original)} busy={busy} onSave={persist} onCancel={(dirty) => dirty ? setDialog("discard") : collection()} />}
     </main>
-    {view.kind !== "editor" && <nav className="mobile-nav" aria-label="Main navigation"><button onClick={collection} aria-current={view.kind === "collection" ? "page" : undefined}><BookOpen size={18} /><span>Collection</span></button><button className="mobile-add" onClick={() => setDialog("add")}><Plus size={18} /><span>Add recipe</span></button><button aria-label="Lists" aria-current={view.kind === "lists" ? "page" : undefined} onClick={lists}><ListChecks size={18} /><span>Lists</span></button></nav>}
+    {view.kind !== "editor" && <nav className="mobile-nav" aria-label="Main navigation"><button onClick={collection} aria-current={view.kind === "collection" ? "page" : undefined}><BookOpen size={18} /><span>Collection</span></button><button className="mobile-add" onClick={() => setDialog("add")}><span className="mobile-add-label"><Plus size={14} /><span>Add recipe</span></span></button><button aria-label="Lists" aria-current={view.kind === "lists" ? "page" : undefined} onClick={lists}><ListChecks size={18} /><span>Lists</span></button></nav>}
     <Modal open={dialog === "add"} title="Add something delicious" description="Bring all screenshots of one recipe, or start with a blank page." onClose={closeDialog}>
       <div className="add-settings"><Button variant="ghost" disabled={busy} onClick={() => { setSettingsFromAdd(true); setDialog("settings"); }}><Settings2 size={17} /> Settings and backups</Button></div>
       <div className="upload-box"><ImagePlus size={30} strokeWidth={1.4} /><h3>Start with screenshots</h3><p className="muted small">1–6 JPEG, PNG, or WebP images of the same recipe.</p><label className="button button-secondary upload-label"><Upload size={18} /> Choose screenshots<input type="file" multiple accept="image/jpeg,image/png,image/webp" disabled={busy || !online} onChange={(event) => { setFiles(Array.from(event.target.files || [])); setUploadError(""); event.target.value = ""; }} /></label></div>
