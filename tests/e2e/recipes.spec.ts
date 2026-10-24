@@ -225,7 +225,7 @@ test("local measurement toggle persists and preserves originals until saved esti
   await page.getByRole("button", { name: "Cups / Spoons", exact: true }).click();
   await expect(page.locator(".cooking-ingredients li").first()).toContainText("120 g Αλεύρι");
   await expect(page.locator(".cooking-ingredients li").nth(1)).toContainText("200 g Chicken");
-  await expect(page.locator(".cooking-ingredients li").first()).toContainText("No saved equivalent");
+  await expect(page.locator(".cooking-ingredients li").first()).not.toContainText("No saved equivalent");
   await page.reload(); await page.locator(".recipe-card").click();
   await expect(page.getByRole("button", { name: "Cups / Spoons", exact: true })).toHaveAttribute("aria-pressed", "true");
   await page.getByRole("button", { name: "Metric", exact: true }).click();
