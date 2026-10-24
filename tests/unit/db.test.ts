@@ -52,7 +52,7 @@ describe("persistent collection", () => {
     old.ingredients = greekRecipe.ingredients.map(ingredient => ({ name: ingredient.name, quantity: ingredient.quantity, unit: ingredient.unit, notes: ingredient.notes }));
     await legacy.table("recipes").put(old); legacy.close();
     await database.open();
-    expect(database.verno).toBe(4);
+    expect(database.verno).toBe(5);
     expect(await database.recipes.get(greekRecipe.id)).toEqual(migrateRecipe(old));
     database.close(); await database.open();
     expect(await database.recipes.get(greekRecipe.id)).toEqual(migrateRecipe(old));

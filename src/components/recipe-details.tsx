@@ -1,16 +1,24 @@
 "use client";
 import { useState, type ReactNode } from "react";
-import { ArrowLeft, Clock3, Pencil, Trash2 } from "lucide-react";
+import { ArrowLeft, Check, Clock3, Pencil, ShoppingBasket, Trash2 } from "lucide-react";
 import { type Recipe } from "@/lib/recipe";
-import { convertIngredient, type MeasurementSystem } from "@/lib/measurements";
+import { convertIngredient, type DisplayMeasurement, type MeasurementSystem } from "@/lib/measurements";
+import { ingredientSourceKey, type ShoppingItem } from "@/lib/shopping-lists";
 import { readMeasurementPreference, writeMeasurementPreference } from "@/lib/preferences";
 import { Button } from "./ui/button";
 import { RecipeMetadata } from "./recipe-metadata";
 import { RecipeJournal } from "./recipe-journal";
-export function RecipeDetails({ recipe, onBack, onEdit, onDelete, headerAction }: { recipe: Recipe; onBack: () => void; onEdit: () => void; onDelete: () => void; headerAction?: ReactNode }) {
+export function RecipeDetails({ recipe, onBack, onEdit, onDelete, headerAction, shoppingItems = [], onAddToSupermarket }: { recipe: Recipe; onBack: () => void; onEdit: () => void; onDelete: () => void; headerAction?: ReactNode; shoppingItems?: ShoppingItem[]; onAddToSupermarket: (index: number, measurement: DisplayMeasurement) => Promise<void> }) {
   const [checked, setChecked] = useState<Set<number>>(new Set());
   const [system, setSystem] = useState<MeasurementSystem>(() => readMeasurementPreference());
   const [preferenceError, setPreferenceError] = useState(false);
+  const [adding, setAdding] = useState<Set<string>>(new Set());
+  const addedSources = new Set(shoppingItems.filter(item => !item.bought).flatMap(item => item.sources.map(source => source.key)));
+  async function add(index: number, measurement: DisplayMeasurement, key: string) {
+    setAdding(current => new Set(current).add(key));
+    try { await onAddToSupermarket(index, measurement); }
+    finally { setAdding(current => { const next = new Set(current); next.delete(key); return next; }); }
+  }
   function changeSystem(value: MeasurementSystem) { setSystem(value); setPreferenceError(!writeMeasurementPreference(value)); }
   return <article className="recipe-detail"><div className="detail-toolbar"><button className="back-link" onClick={onBack}><ArrowLeft size={18} /> All recipes</button>{headerAction}</div>
     <div className="page-heading">{recipe.category && <p className="eyebrow">{recipe.category}</p>}<h1>{recipe.title}</h1>{recipe.description && <p className="recipe-description">{recipe.description}</p>}</div>
@@ -18,7 +26,9 @@ export function RecipeDetails({ recipe, onBack, onEdit, onDelete, headerAction }
     {recipe.tags.length > 0 && <div className="tag-list">{recipe.tags.map((tag, index) => <span className="tag" key={index}>{tag}</span>)}</div>}
     <div className="detail-columns"><section className="ingredients-section"><div className="section-heading"><h2>Ingredients</h2><span className="count-label">{checked.size}/{recipe.ingredients.length}</span></div><div className="measurement-toggle" role="group" aria-label="Ingredient measurements"><Button variant="secondary" aria-pressed={system === "metric"} onClick={() => changeSystem("metric")}>Metric</Button><Button variant="secondary" aria-pressed={system === "cups"} onClick={() => changeSystem("cups")}>Cups / Spoons</Button></div>{preferenceError && <p className="muted small" role="status">Your browser could not remember this preference. It still applies to this view.</p>}<ul className="cooking-ingredients">{recipe.ingredients.map((ingredient, index) => {
       const measurement = convertIngredient(ingredient, system);
-      return <li key={index}><label className={checked.has(index) ? "checked" : ""}><input type="checkbox" checked={checked.has(index)} onChange={(event) => { const next = new Set(checked); if (event.target.checked) next.add(index); else next.delete(index); setChecked(next); }} /><span><strong>{measurement.approximate ? "≈ " : ""}{[measurement.quantity, measurement.unit, ingredient.name].filter(Boolean).join(" ")}</strong>{ingredient.notes && <small>{ingredient.notes}</small>}<small>Original: {[ingredient.quantity, ingredient.unit].filter(Boolean).join(" ") || "No amount specified"}</small>{measurement.reason && measurement.reason !== "No saved equivalent. Re-estimate to request one." && <small>{measurement.reason}</small>}</span></label></li>;
+      const sourceKey = ingredientSourceKey(recipe, index);
+      const added = addedSources.has(sourceKey);
+      return <li key={index}><label className={checked.has(index) ? "checked" : ""}><input type="checkbox" checked={checked.has(index)} onChange={(event) => { const next = new Set(checked); if (event.target.checked) next.add(index); else next.delete(index); setChecked(next); }} /><span><strong>{measurement.approximate ? "≈ " : ""}{[measurement.quantity, measurement.unit, ingredient.name].filter(Boolean).join(" ")}</strong>{ingredient.notes && <small>{ingredient.notes}</small>}<small>Original: {[ingredient.quantity, ingredient.unit].filter(Boolean).join(" ") || "No amount specified"}</small>{measurement.reason && measurement.reason !== "No saved equivalent. Re-estimate to request one." && <small>{measurement.reason}</small>}</span></label><button className="icon-button ingredient-shopping" aria-label={`${added ? "Added" : "Add"} ${ingredient.name} to Supermarket`} title={added ? "Added to Supermarket" : "Add to Supermarket"} disabled={added || adding.has(sourceKey)} onClick={() => void add(index, measurement, sourceKey)}>{added ? <Check size={18} /> : <ShoppingBasket size={18} />}</button></li>;
     })}</ul>{!recipe.ingredients.length && <p className="muted">No ingredients added yet.</p>}</section>
       <section className="method-section"><h2>Method</h2><ol className="cooking-steps">{recipe.instructions.map((step, index) => <li key={index}><span className="step-number" aria-hidden>{String(index + 1).padStart(2, "0")}</span><p>{step}</p></li>)}</ol>{!recipe.instructions.length && <p className="muted">No cooking steps added yet.</p>}</section></div>
     <RecipeJournal recipe={recipe} onRestored={() => setChecked(new Set())} /><div className="detail-footer"><Button variant="secondary" onClick={onEdit}><Pencil size={17} /> Edit recipe</Button><Button variant="ghost" onClick={onDelete}><Trash2 size={17} /> Delete</Button></div><p className="muted small">Saved {new Date(recipe.createdAt).toLocaleDateString()} · Updated {new Date(recipe.updatedAt).toLocaleDateString()}</p>

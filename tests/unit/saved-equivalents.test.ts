@@ -176,7 +176,7 @@ describe("persistent equivalents and history", () => {
     const remove = (value: unknown): unknown => Array.isArray(value) ? value.map(remove) : value && typeof value === "object" ? Object.fromEntries(Object.entries(value).filter(([key]) => key !== "savedMeasurements").map(([key, value]) => [key, remove(value)])) : value;
     const old = remove(journalRecipe); await legacy.table("recipes").put(old); legacy.close(); await db.open();
     const migrated = (await db.recipes.get(journalRecipe.id))!;
-    expect(db.verno).toBe(4); expect(migrated).toEqual(journalRecipe); expect(migrated.ingredients.every(item => item.savedMeasurements === null)).toBe(true);
+    expect(db.verno).toBe(5); expect(migrated).toEqual(journalRecipe); expect(migrated.ingredients.every(item => item.savedMeasurements === null)).toBe(true);
     const oldFile = exportCollection([journalRecipe]).replace("Format: recipe-tracker/4", "Format: recipe-tracker/3").replace(/^```json\n([\s\S]*?)\n```/gm, (_block, json) => '```json\n' + JSON.stringify(remove(JSON.parse(json)), null, 2) + '\n```');
     expect(importCollection(oldFile)).toEqual([journalRecipe]);
     expect(importCollection(exportCollection(importCollection(oldFile)))).toEqual([journalRecipe]);

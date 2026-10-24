@@ -29,7 +29,7 @@ describe("database and backup compatibility", () => {
     old.ingredients[0].ingredientType = "flour";
     await legacy.table("recipes").put(old); legacy.close(); await db.open();
     const saved = (await db.recipes.get(old.id))!;
-    expect(db.verno).toBe(4); expect(saved).toEqual(migrateRecipe(old));
+    expect(db.verno).toBe(5); expect(saved).toEqual(migrateRecipe(old));
     expect(originals(saved.ingredients)).toEqual(originals(old.ingredients));
     expect(saved.ingredients[0].identity?.source).toBe("legacy");
     expect(saved.ingredients[0].measurementContext.conventionSource).toBe("legacy");

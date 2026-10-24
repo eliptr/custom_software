@@ -3,9 +3,12 @@ import { cookingNoteSchema, makeRevision, recipeSchema, toRecipeContent, type Co
 import { exportCollection } from "./markdown";
 import { canonicalJSON } from "./serialization";
 import { migrateRecipe } from "./conversion/migrate";
+import { supermarketList, type ShoppingList, type ShoppingItem } from "./shopping-lists";
 
 export class RecipeDatabase extends Dexie {
   recipes!: Table<Recipe, string>;
+  shoppingLists!: Table<ShoppingList, string>;
+  shoppingItems!: Table<ShoppingItem, string>;
   constructor(name = "recipe-tracker") {
     super(name);
     this.version(1).stores({ recipes: "id, title, createdAt, updatedAt, category, *tags" });
@@ -17,6 +20,15 @@ export class RecipeDatabase extends Dexie {
     });
     this.version(4).stores({ recipes: "id, title, createdAt, updatedAt, category, *tags" }).upgrade(async transaction => {
       await transaction.table("recipes").toCollection().modify(recipe => Object.assign(recipe, migrateRecipe(recipe)));
+    });
+    this.version(5).stores({
+      shoppingLists: "id, createdAt",
+      shoppingItems: "id, listId, &[listId+normalizedName], createdAt",
+    }).upgrade(async transaction => {
+      await transaction.table("shoppingLists").put(supermarketList());
+    });
+    this.on("populate", async transaction => {
+      await transaction.table("shoppingLists").put(supermarketList());
     });
   }
 }

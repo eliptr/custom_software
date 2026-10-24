@@ -3,6 +3,7 @@ import { exportCollection } from "../../src/lib/markdown";
 import { greekRecipe, ingredientsOnlyRecipe } from "../fixtures";
 import { metadataSchema, toRecipeContent } from "../../src/lib/recipe";
 import { normalizeExtraction } from "../../src/lib/ai/provider";
+import { openSettings } from "./helpers";
 
 async function manual(page: Page, title = "Κέικ λεμονιού") {
   await page.getByRole("button", { name: "Add your first recipe" }).click();
@@ -55,7 +56,7 @@ test("manual CRUD, cooking checklist, search, filters, and persistence", async (
 
 test("one Markdown download and previewed repeated merge/replace imports", async ({ page }) => {
   await page.goto("/"); await manual(page);
-  await page.getByRole("button", { name: "Settings and backups" }).click();
+  await openSettings(page);
   const downloadPromise = page.waitForEvent("download");
   await page.getByRole("button", { name: "Export collection", exact: true }).click();
   const download = await downloadPromise;
@@ -157,7 +158,7 @@ test("malformed import, cancel edits, dark mode, and responsive layout", async (
   await page.getByLabel(/Recipe title/).fill("Do not save");
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
   await page.getByRole("button", { name: "Discard changes" }).click();
-  await page.getByRole("button", { name: "Settings and backups" }).click();
+  await openSettings(page);
   await page.getByRole("button", { name: "Dark", exact: true }).click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
   await page.getByRole("button", { name: "Close dialog" }).click();
@@ -174,7 +175,7 @@ test("browser chrome follows saved appearance and system changes", async ({ page
   await expect(themeColor).toHaveCount(1);
   await expect(themeColor).toHaveAttribute("content", "#f7f6f0");
   await expect(page.locator('meta[name="apple-mobile-web-app-status-bar-style"]')).toHaveAttribute("content", "black-translucent");
-  await page.getByRole("button", { name: "Settings and backups" }).click();
+  await openSettings(page);
   await page.getByRole("button", { name: "Dark", exact: true }).click();
   await expect(themeColor).toHaveAttribute("content", "#1c1e1a");
   await expect(page.locator("html")).toHaveCSS("background-color", "rgb(28, 30, 26)");
@@ -183,7 +184,7 @@ test("browser chrome follows saved appearance and system changes", async ({ page
   await page.reload();
   await expect(themeColor).toHaveCount(1);
   await expect(themeColor).toHaveAttribute("content", "#1c1e1a");
-  await page.getByRole("button", { name: "Settings and backups" }).click();
+  await openSettings(page);
   await page.getByRole("button", { name: "System", exact: true }).click();
   await expect(themeColor).toHaveAttribute("content", "#f7f6f0");
   await page.emulateMedia({ colorScheme: "dark" });
